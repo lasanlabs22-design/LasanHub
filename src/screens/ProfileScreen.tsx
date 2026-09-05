@@ -20,8 +20,10 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { saveProfile } from "../api/client";
+import { hasVerifiedPhone } from "../lib/auth";
 import Field from "../components/Field";
 import Button from "../components/Button";
+import VerifySheet from "../screens/VerifySheet";
 
 const CATEGORIES = [
   "Fashion",
@@ -59,6 +61,7 @@ export default function ProfileScreen({ navigation }: any) {
   );
 
   const [busy, setBusy] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const ready =
     name.trim().length > 1 && instagram.trim().length > 1 && !!category;
@@ -86,9 +89,8 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
-  const handleSave = async () => {
-    if (!ready || busy) return;
-
+  /** The actual save — only called once the number is verified */
+  const doSave = async () => {
     setBusy(true);
 
     try {
@@ -111,13 +113,35 @@ export default function ProfileScreen({ navigation }: any) {
         isEditing
           ? "Our team will review the changes shortly."
           : "We'll review your profile and get back to you within a day or two.",
-        [{ text: "OK", onPress: () => navigation?.goBack?.() }],
+        [
+          {
+            text: "OK",
+            // Only go back when editing — on first creation the navigator
+            // swaps to the tabs on its own once the profile exists
+            onPress: () => {
+              if (isEditing) navigation?.goBack?.();
+            },
+          },
+        ],
       );
     } catch (err: any) {
       Alert.alert("Could not save", err?.message || "Please try again.");
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleSave = () => {
+    if (!ready || busy) return;
+
+    // Nothing can be saved until the number is proven — the backend
+    // identifies every creator by their verified phone
+    if (!hasVerifiedPhone()) {
+      setVerifying(true);
+      return;
+    }
+
+    doSave();
   };
 
   return (
@@ -127,7 +151,7 @@ export default function ProfileScreen({ navigation }: any) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.header}>
-          {isEditing && (
+          {isEditing ? (
             <TouchableOpacity
               style={styles.back}
               onPress={() => navigation.goBack()}
@@ -138,7 +162,10 @@ export default function ProfileScreen({ navigation }: any) {
                 color={colors.textDark}
               />
             </TouchableOpacity>
+          ) : (
+            <View style={{ width: 38 }} />
           )}
+
           <Text style={styles.headerTitle}>
             {isEditing ? "Edit profile" : "Create your profile"}
           </Text>
@@ -280,14 +307,17 @@ export default function ProfileScreen({ navigation }: any) {
             maxLength={500}
           />
 
-          {/* Phone is fixed — it's how they signed in */}
           <View style={styles.lockedRow}>
             <MaterialCommunityIcons
-              name="shield-check"
+              name={phone ? "shield-check" : "shield-outline"}
               size={17}
-              color={colors.success}
+              color={phone ? colors.success : colors.textLight}
             />
-            <Text style={styles.lockedText}>Verified number: +91 {phone}</Text>
+            <Text style={styles.lockedText}>
+              {phone
+                ? `Verified number: +91 ${phone}`
+                : "We'll verify your number when you submit"}
+            </Text>
           </View>
 
           <Button
@@ -304,6 +334,16 @@ export default function ProfileScreen({ navigation }: any) {
             </Text>
           )}
         </ScrollView>
+
+        {/* Appears only when there's no verified number yet */}
+        <VerifySheet
+          visible={verifying}
+          onClose={() => setVerifying(false)}
+          onVerified={async () => {
+            setVerifying(false);
+            await doSave();
+          }}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

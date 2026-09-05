@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -67,7 +67,13 @@ function Tabs() {
 export default function AppNavigator() {
   const { isReady, isSignedIn, profile } = useAuth();
 
-  // Hold the splash until we know which screen to show
+  /**
+   * Whether they've moved past the intro this session. Not persisted —
+   * anyone without a profile should see the pitch again next launch.
+   */
+  const [passedIntro, setPassedIntro] = useState(false);
+
+  // Hold the splash until we know which screen belongs on screen
   if (!isReady) {
     return <View style={styles.blank} />;
   }
@@ -75,11 +81,13 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isSignedIn ? (
-          /* Not verified — nothing else exists yet */
-          <Stack.Screen name="Auth" component={AuthScreen} />
+        {!isSignedIn && !passedIntro ? (
+          /* The pitch. Either button moves them on — no OTP yet. */
+          <Stack.Screen name="Auth">
+            {() => <AuthScreen onContinue={() => setPassedIntro(true)} />}
+          </Stack.Screen>
         ) : !profile ? (
-          /* Verified but no profile — go straight to creating one */
+          /* No profile yet. The number gets verified when they submit. */
           <Stack.Screen name="CreateProfile" component={ProfileScreen} />
         ) : (
           <>

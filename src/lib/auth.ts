@@ -101,11 +101,13 @@ export async function signInWithGoogle(): Promise<{
   } catch (err: any) {
     if (err instanceof AuthError) throw err;
 
+    console.log("GOOGLE ERROR:", err?.code, err?.message);
+
     if (err?.code === statusCodes.SIGN_IN_CANCELLED) {
       throw new AuthError("Cancelled", true);
     }
 
-    throw new AuthError("Couldn't sign in with Google.");
+    throw new AuthError(`${err?.code || "no-code"} — ${err?.message || ""}`);
   }
 }
 
