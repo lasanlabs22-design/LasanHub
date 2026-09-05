@@ -8,7 +8,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
-import AuthScreen from "../screens/Authscreen";
+import AuthScreen from "../screens/AuthScreen";
 import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import RequestsScreen from "../screens/RequestsScreen";

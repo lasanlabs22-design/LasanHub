@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "619769435695-uqum4ob6qe9elusbdsig03il1ih1ok03.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lasanhub.app",
+            "certificate_hash": "49bfd8b9351de4d53ae01ed713e18a82e7db56ba"
+          }
+        },
+        {
           "client_id": "619769435695-1af73d9j24u4mvjqtn8rqcupm7jlmhoo.apps.googleusercontent.com",
           "client_type": 3
         }
