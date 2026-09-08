@@ -9,6 +9,7 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { Role } from "../data/roles";
+import OnboardingScreen from "../screens/OnboardingScreen";
 import AuthScreen from "../screens/AuthScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
 import HomeScreen from "../screens/HomeScreen";
@@ -70,19 +71,18 @@ export default function AppNavigator() {
   const { isReady, isSignedIn, profile } = useAuth();
 
   /**
-   * What they said they are on the intro. Not persisted — anyone
-   * without a profile should see the pitch again next launch, and
-   * the saved profile carries the role once one exists.
+   * Three steps before the form, none of them persisted — anyone
+   * without a profile should see the whole pitch again next launch.
+   * Once a profile exists it carries the role, and none of this matters.
    */
+  const [seenOnboarding, setSeenOnboarding] = useState(false);
   const [chosenRole, setChosenRole] = useState<Role | null>(null);
-
-  /** Whether they've clicked through the role-specific Welcome screen
-   *  this session. Not persisted either, for the same reason. */
   const [seenWelcome, setSeenWelcome] = useState(false);
 
-  /* Signing out sends them back to the pitch, not the half-filled form */
+  /* Signing out sends them back to the start, not a half-filled form */
   useEffect(() => {
     if (!isSignedIn && !profile) {
+      setSeenOnboarding(false);
       setChosenRole(null);
       setSeenWelcome(false);
     }
@@ -96,13 +96,18 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!profile && !chosenRole ? (
-          /* The pitch, and picking what they are. No OTP yet. */
+        {!profile && !seenOnboarding ? (
+          /* What Lasan Hub is, and who each part is for */
+          <Stack.Screen name="Onboarding">
+            {() => <OnboardingScreen onDone={() => setSeenOnboarding(true)} />}
+          </Stack.Screen>
+        ) : !profile && !chosenRole ? (
+          /* Pick what you are */
           <Stack.Screen name="Auth">
             {() => <AuthScreen onContinue={(r) => setChosenRole(r)} />}
           </Stack.Screen>
         ) : !profile && !seenWelcome ? (
-          /* Role-specific welcome, shown once before the profile form. */
+          /* The pitch for that role specifically */
           <Stack.Screen name="Welcome">
             {() => (
               <WelcomeScreen

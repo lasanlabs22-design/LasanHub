@@ -32,6 +32,7 @@ import {
 import Field from "../components/Field";
 import Button from "../components/Button";
 import VerifySheet from "../screens/VerifySheet";
+import TrustPanel from "../components/TrustPanel";
 
 export default function ProfileScreen({
   navigation,
@@ -558,6 +559,8 @@ export default function ProfileScreen({
               Editing your profile sends it back for review
             </Text>
           )}
+
+          <TrustPanel />
         </ScrollView>
 
         <VerifySheet

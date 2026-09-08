@@ -10,6 +10,7 @@ import {
   Platform,
   Keyboard,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -26,9 +27,9 @@ type Props = {
 };
 
 /**
- * Collects and verifies a phone number, at the moment the creator
- * submits their profile. Nothing is saved until this passes, because
- * the backend identifies everyone by their verified number.
+ * Collects and verifies a phone number at the moment the partner
+ * submits their profile. A full screen rather than a bottom sheet,
+ * so the keyboard doesn't cover what they're typing.
  */
 export default function VerifySheet({ visible, onClose, onVerified }: Props) {
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -101,206 +102,220 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
     }
   };
 
+  const goBack = () => {
+    if (step === "code") {
+      setStep("phone");
+      setCode("");
+      setError("");
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View style={styles.sheet}>
-          <View style={styles.grabber} />
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={goBack}
+    >
+      <SafeAreaView style={styles.screen}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.close}
+              onPress={goBack}
+              disabled={busy}
+            >
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={21}
+                color={colors.textDark}
+              />
+            </TouchableOpacity>
+          </View>
 
-          {step === "phone" ? (
-            <>
-              <View style={styles.icon}>
-                <MaterialCommunityIcons
-                  name="cellphone-check"
-                  size={22}
-                  color={colors.primary}
+          <View style={styles.body}>
+            {step === "phone" ? (
+              <>
+                <View style={styles.icon}>
+                  <MaterialCommunityIcons
+                    name="cellphone-check"
+                    size={24}
+                    color={colors.primary}
+                  />
+                </View>
+
+                <Text style={styles.title}>Verify your number</Text>
+                <Text style={styles.subtitle}>
+                  This is how businesses and our team reach you. We'll text a
+                  6-digit code.
+                </Text>
+
+                <View style={styles.phoneBox}>
+                  <Text style={styles.code}>+91</Text>
+                  <View style={styles.divider} />
+                  <TextInput
+                    style={styles.phoneInput}
+                    placeholder="9876543210"
+                    placeholderTextColor={colors.textLight}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    value={phone}
+                    onChangeText={(t) => {
+                      setPhone(t.replace(/[^0-9]/g, ""));
+                      setError("");
+                    }}
+                    autoFocus
+                    editable={!busy}
+                  />
+                  {phone.length === 10 && (
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={19}
+                      color={colors.success}
+                    />
+                  )}
+                </View>
+
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+
+                <Button
+                  label="Send code"
+                  onPress={() => send()}
+                  disabled={phone.length !== 10}
+                  busy={busy}
+                  style={{ marginTop: 22 }}
                 />
-              </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.icon}>
+                  <MaterialCommunityIcons
+                    name="message-text-lock-outline"
+                    size={24}
+                    color={colors.primary}
+                  />
+                </View>
 
-              <Text style={styles.title}>Verify your number</Text>
-              <Text style={styles.subtitle}>
-                This is how businesses and our team reach you. We'll text a
-                6-digit code.
-              </Text>
+                <Text style={styles.title}>Enter the code</Text>
+                <Text style={styles.subtitle}>
+                  Sent to +91 {phone}{" "}
+                  <Text
+                    style={styles.changeLink}
+                    onPress={() => {
+                      setStep("phone");
+                      setCode("");
+                      setError("");
+                    }}
+                  >
+                    Change
+                  </Text>
+                </Text>
 
-              <View style={styles.phoneBox}>
-                <Text style={styles.code}>+91</Text>
-                <View style={styles.divider} />
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => codeInput.current?.focus()}
+                  style={styles.boxRow}
+                >
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.codeBox,
+                        code[i] ? styles.codeBoxFilled : null,
+                        i === code.length ? styles.codeBoxActive : null,
+                      ]}
+                    >
+                      <Text style={styles.codeText}>{code[i] || ""}</Text>
+                    </View>
+                  ))}
+                </TouchableOpacity>
+
                 <TextInput
-                  style={styles.phoneInput}
-                  placeholder="9876543210"
-                  placeholderTextColor={colors.textLight}
+                  ref={codeInput}
+                  style={styles.hidden}
                   keyboardType="number-pad"
-                  maxLength={10}
-                  value={phone}
+                  maxLength={6}
+                  value={code}
                   onChangeText={(t) => {
-                    setPhone(t.replace(/[^0-9]/g, ""));
+                    setCode(t.replace(/[^0-9]/g, ""));
                     setError("");
                   }}
-                  autoFocus
+                  caretHidden
                   editable={!busy}
                 />
-                {phone.length === 10 && (
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={19}
-                    color={colors.success}
-                  />
-                )}
-              </View>
 
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+                {error ? <Text style={styles.error}>{error}</Text> : null}
 
-              <Button
-                label="Send code"
-                onPress={() => send()}
-                disabled={phone.length !== 10}
-                busy={busy}
-                style={{ marginTop: 20 }}
-              />
-
-              <TouchableOpacity
-                style={styles.cancel}
-                onPress={onClose}
-                disabled={busy}
-              >
-                <Text style={styles.cancelText}>Not now</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <View style={styles.icon}>
-                <MaterialCommunityIcons
-                  name="message-text-lock-outline"
-                  size={22}
-                  color={colors.primary}
+                <Button
+                  label="Verify & submit"
+                  onPress={verify}
+                  disabled={code.length !== 6}
+                  busy={busy}
+                  style={{ marginTop: 22 }}
                 />
-              </View>
 
-              <Text style={styles.title}>Enter the code</Text>
-              <Text style={styles.subtitle}>
-                Sent to +91 {phone}{" "}
-                <Text
-                  style={styles.changeLink}
-                  onPress={() => {
-                    setStep("phone");
-                    setCode("");
-                    setError("");
-                  }}
-                >
-                  Change
-                </Text>
-              </Text>
-
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={() => codeInput.current?.focus()}
-                style={styles.boxRow}
-              >
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.codeBox,
-                      code[i] ? styles.codeBoxFilled : null,
-                      i === code.length ? styles.codeBoxActive : null,
-                    ]}
+                {seconds > 0 ? (
+                  <Text style={styles.wait}>Resend in {seconds}s</Text>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.resend}
+                    onPress={() => send(true)}
+                    disabled={busy}
                   >
-                    <Text style={styles.codeText}>{code[i] || ""}</Text>
-                  </View>
-                ))}
-              </TouchableOpacity>
-
-              <TextInput
-                ref={codeInput}
-                style={styles.hidden}
-                keyboardType="number-pad"
-                maxLength={6}
-                value={code}
-                onChangeText={(t) => {
-                  setCode(t.replace(/[^0-9]/g, ""));
-                  setError("");
-                }}
-                caretHidden
-                editable={!busy}
-              />
-
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-
-              <Button
-                label="Verify & submit"
-                onPress={verify}
-                disabled={code.length !== 6}
-                busy={busy}
-                style={{ marginTop: 20 }}
-              />
-
-              {seconds > 0 ? (
-                <Text style={styles.wait}>Resend in {seconds}s</Text>
-              ) : (
-                <TouchableOpacity
-                  style={styles.cancel}
-                  onPress={() => send(true)}
-                  disabled={busy}
-                >
-                  <Text style={styles.resendText}>Send a new code</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-        </View>
-      </KeyboardAvoidingView>
+                    <Text style={styles.resendText}>Send a new code</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(15,10,31,0.55)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 22,
-    paddingTop: 10,
-    paddingBottom: 28,
-  },
-  grabber: {
+  screen: { flex: 1, backgroundColor: colors.background },
+
+  header: { paddingHorizontal: 14, paddingVertical: 12 },
+  close: {
     width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    alignSelf: "center",
-    marginBottom: 20,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
   },
+
+  body: { flex: 1, paddingHorizontal: 22, paddingTop: 16 },
+
   icon: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
+    width: 50,
+    height: 50,
+    borderRadius: 17,
     backgroundColor: colors.primarySoft,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 18,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 21,
+    fontSize: 24,
     color: colors.textDark,
-    letterSpacing: -0.5,
-    marginBottom: 7,
+    letterSpacing: -0.6,
+    marginBottom: 8,
   },
   subtitle: {
     fontFamily: fonts.regular,
-    fontSize: 13.5,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 21,
     color: colors.textMid,
-    marginBottom: 20,
+    marginBottom: 26,
   },
   changeLink: { fontFamily: fonts.semibold, color: colors.primary },
 
@@ -308,29 +323,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
-    height: 56,
-    borderRadius: 15,
+    height: 58,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
   },
-  code: { fontFamily: fonts.semibold, fontSize: 15.5, color: colors.textDark },
-  divider: { width: 1, height: 20, backgroundColor: colors.border },
+  code: { fontFamily: fonts.semibold, fontSize: 16, color: colors.textDark },
+  divider: { width: 1, height: 22, backgroundColor: colors.border },
   phoneInput: {
     flex: 1,
     fontFamily: fonts.regular,
-    fontSize: 16,
+    fontSize: 17,
     color: colors.textDark,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     padding: 0,
   },
 
-  boxRow: { flexDirection: "row", gap: 8 },
+  boxRow: { flexDirection: "row", gap: 9 },
   codeBox: {
     flex: 1,
-    height: 54,
-    borderRadius: 13,
+    height: 58,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -342,32 +357,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
   },
   codeBoxActive: { borderColor: colors.primary },
-  codeText: { fontFamily: fonts.bold, fontSize: 21, color: colors.textDark },
+  codeText: { fontFamily: fonts.bold, fontSize: 22, color: colors.textDark },
   hidden: { position: "absolute", opacity: 0, width: 1, height: 1 },
 
   error: {
     fontFamily: fonts.regular,
     fontSize: 13,
     color: colors.danger,
-    marginTop: 12,
+    marginTop: 14,
   },
 
-  cancel: { alignItems: "center", paddingVertical: 15, marginTop: 2 },
-  cancelText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.textLight,
-  },
-  resendText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.primary,
-  },
   wait: {
     fontFamily: fonts.regular,
     fontSize: 13,
     color: colors.textLight,
     textAlign: "center",
-    marginTop: 18,
+    marginTop: 20,
+  },
+  resend: { alignItems: "center", paddingVertical: 18 },
+  resendText: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.primary,
   },
 });
