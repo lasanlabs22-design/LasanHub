@@ -8,6 +8,7 @@ export type CreatorStatus = "pending" | "approved" | "rejected" | "paused";
 export type CreatorProfile = {
   id: string;
   phone: string;
+  role: "influencer" | "vendor" | "freelancer";
   name: string;
   email: string | null;
   photo_url: string | null;
@@ -17,6 +18,13 @@ export type CreatorProfile = {
   city: string | null;
   bio: string | null;
   rate_per_post: number | null;
+  company_name: string | null;
+  gst_number: string | null;
+  services: string[] | null;
+  other_service: string | null;
+  portfolio_url: string | null;
+  skills: string[] | null;
+  rate_card: string | null;
   status: CreatorStatus;
   review_note: string | null;
   created_at: string;
@@ -78,15 +86,23 @@ export async function fetchMyProfile(): Promise<CreatorProfile | null> {
 }
 
 export async function saveProfile(payload: {
+  role: string;
   name: string;
   email?: string;
   photoUrl?: string;
-  instagramId: string;
-  followers?: string;
-  category?: string;
   city?: string;
   bio?: string;
+  instagramId?: string;
+  followers?: string;
+  category?: string;
   ratePerPost?: number;
+  companyName?: string;
+  gstNumber?: string;
+  services?: string[];
+  otherService?: string;
+  portfolioUrl?: string;
+  skills?: string[];
+  rateCard?: string;
 }): Promise<void> {
   await request("/influencers", {
     method: "POST",
