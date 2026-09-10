@@ -37,7 +37,10 @@ const STEPS: Record<Role, { t: string; d: string }[]> = {
       t: "Create your profile",
       d: "Photo, handle, rate and what you post about",
     },
-    { t: "We verify you", d: "Our team checks the account is genuinely yours" },
+    {
+      t: "We verify you",
+      d: "Our team checks the account is genuinely yours",
+    },
     {
       t: "Get campaign requests",
       d: "Businesses find you and our team gets in touch",
@@ -57,7 +60,10 @@ const STEPS: Record<Role, { t: string; d: string }[]> = {
   freelancer: [
     { t: "Show us your work", d: "Skills, portfolio and what you charge" },
     { t: "We review it properly", d: "A real person looks at your portfolio" },
-    { t: "Briefs come to you", d: "Scoped and priced before they reach you" },
+    {
+      t: "Briefs come to you",
+      d: "Scoped and priced before they reach you",
+    },
   ],
 };
 
@@ -83,13 +89,19 @@ export default function HomeScreen({ navigation }: any) {
   const role: Role = profile?.role || "influencer";
   const meta = roleMeta(role);
 
-  /** The line under the name — whatever identifies them best */
+  /** Falls back through what we actually have, so a null never shows */
+  const phoneLine = phone
+    ? `+91 ${phone}`
+    : profile?.phone
+      ? `+91 ${profile.phone}`
+      : "";
+
   const subtitle =
     role === "vendor"
-      ? profile?.company_name || `+91 ${phone}`
+      ? profile?.company_name || phoneLine
       : profile?.instagram_id
         ? `@${profile.instagram_id}`
-        : `+91 ${phone}`;
+        : phoneLine;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -107,7 +119,7 @@ export default function HomeScreen({ navigation }: any) {
           />
         }
       >
-        {/* Status card — the main thing they open the app for */}
+        {/* Status — the main thing they open the app for */}
         <LinearGradient
           colors={[colors.primary, colors.primaryDark]}
           start={{ x: 0, y: 0 }}
@@ -134,9 +146,11 @@ export default function HomeScreen({ navigation }: any) {
               <Text style={styles.name} numberOfLines={1}>
                 {profile?.name || "Welcome"}
               </Text>
-              <Text style={styles.handle} numberOfLines={1}>
-                {subtitle}
-              </Text>
+              {subtitle ? (
+                <Text style={styles.handle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : null}
             </View>
 
             {profile && (
@@ -172,6 +186,7 @@ export default function HomeScreen({ navigation }: any) {
           </Text>
         </LinearGradient>
 
+        {/* How complete their profile is */}
         {profile && (
           <StrengthCard
             profile={profile}
@@ -179,115 +194,31 @@ export default function HomeScreen({ navigation }: any) {
           />
         )}
 
-        {/* Primary action */}
-        <TouchableOpacity
-          style={styles.actionCard}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate("Profile")}
-        >
-          <View style={styles.actionIcon}>
-            <MaterialCommunityIcons
-              name={profile ? "pencil-outline" : "account-plus-outline"}
-              size={profile ? 20 : 22}
-              color={colors.primary}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>
-              {profile ? "Edit profile" : "Create your profile"}
-            </Text>
-            <Text style={styles.actionText}>
-              {!profile
-                ? "Takes about two minutes"
-                : role === "influencer"
-                  ? "Update your rate, bio or photo"
-                  : "Update your rate card, services or photo"}
-            </Text>
-          </View>
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={colors.textLight}
-          />
-        </TouchableOpacity>
-
-        {/* Details, once there's a profile — different per role */}
-        {profile && (
-          <>
-            <Text style={styles.sectionLabel}>YOUR DETAILS</Text>
-
-            <View style={styles.detailCard}>
-              {role === "influencer" && (
-                <>
-                  <Detail
-                    label="Instagram"
-                    value={
-                      profile.instagram_id ? `@${profile.instagram_id}` : null
-                    }
-                  />
-                  <Detail label="Posts about" value={profile.category} />
-                  <Detail label="Followers" value={profile.followers} />
-                  <Detail label="City" value={profile.city} />
-                  <Detail
-                    label="Rate per post"
-                    value={
-                      profile.rate_per_post
-                        ? "₹" + profile.rate_per_post.toLocaleString("en-IN")
-                        : null
-                    }
-                  />
-                </>
-              )}
-
-              {role === "vendor" && (
-                <>
-                  <Detail label="Company" value={profile.company_name} />
-                  <Detail label="GST" value={profile.gst_number} />
-                  <Detail
-                    label="Services"
-                    value={
-                      profile.services?.length
-                        ? `${profile.services.length} listed`
-                        : null
-                    }
-                  />
-                  <Detail label="City" value={profile.city} />
-                  <Detail
-                    label="Rate card"
-                    value={profile.rate_card ? "Added" : null}
-                  />
-                </>
-              )}
-
-              {role === "freelancer" && (
-                <>
-                  <Detail
-                    label="Skills"
-                    value={
-                      profile.skills?.length
-                        ? `${profile.skills.length} listed`
-                        : null
-                    }
-                  />
-                  <Detail
-                    label="Portfolio"
-                    value={profile.portfolio_url ? "Added" : null}
-                  />
-                  <Detail
-                    label="Instagram"
-                    value={
-                      profile.instagram_id ? `@${profile.instagram_id}` : null
-                    }
-                  />
-                  <Detail label="City" value={profile.city} />
-                  <Detail
-                    label="Rate card"
-                    value={profile.rate_card ? "Added" : null}
-                  />
-                </>
-              )}
+        {/* Only shown before there's a profile — afterwards, editing
+            lives in the Account tab where the details are */}
+        {!profile && (
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate("Profile")}
+          >
+            <View style={styles.actionIcon}>
+              <MaterialCommunityIcons
+                name="account-plus-outline"
+                size={22}
+                color={colors.primary}
+              />
             </View>
-          </>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionTitle}>Create your profile</Text>
+              <Text style={styles.actionText}>Takes about two minutes</Text>
+            </View>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={20}
+              color={colors.textLight}
+            />
+          </TouchableOpacity>
         )}
 
         {/* How it works — told in this role's language */}
@@ -308,17 +239,6 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string | null }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={[styles.detailValue, !value && styles.detailEmpty]}>
-        {value || "Not set"}
-      </Text>
-    </View>
   );
 }
 
@@ -444,34 +364,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.9,
     marginTop: 28,
     marginBottom: 12,
-  },
-
-  detailCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  detailLabel: {
-    fontFamily: fonts.regular,
-    fontSize: 13.5,
-    color: colors.textMid,
-  },
-  detailValue: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.textDark,
-  },
-  detailEmpty: {
-    fontFamily: fonts.regular,
-    color: colors.textLight,
   },
 
   stepsCard: {

@@ -40,7 +40,7 @@ export default function ProfileScreen({
   onBack,
 }: any) {
   const insets = useSafeAreaInsets();
-  const { profile, prefill, phone, refreshProfile } = useAuth();
+  const { profile, prefill, phone, refreshProfile, markSignedIn } = useAuth();
 
   const isEditing = !!profile;
 
@@ -568,6 +568,8 @@ export default function ProfileScreen({
           onClose={() => setVerifying(false)}
           onVerified={async () => {
             setVerifying(false);
+            // Firebase has the number now — tell the context to re-read it
+            markSignedIn();
             await doSave();
           }}
         />
