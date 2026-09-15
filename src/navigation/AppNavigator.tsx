@@ -16,6 +16,7 @@ import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import RequestsScreen from "../screens/RequestsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
+import SignInScreen from "../screens/SignInScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -79,12 +80,18 @@ export default function AppNavigator() {
   const [chosenRole, setChosenRole] = useState<Role | null>(null);
   const [seenWelcome, setSeenWelcome] = useState(false);
 
+  /* "Already registered? Sign in" from AuthScreen takes over the stack
+     until they finish or back out — same not-persisted treatment as
+     the steps above. */
+  const [signingIn, setSigningIn] = useState(false);
+
   /* Signing out sends them back to the start, not a half-filled form */
   useEffect(() => {
     if (!isSignedIn && !profile) {
       setSeenOnboarding(false);
       setChosenRole(null);
       setSeenWelcome(false);
+      setSigningIn(false);
     }
   }, [isSignedIn, profile]);
 
@@ -96,7 +103,18 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!profile && !seenOnboarding ? (
+        {signingIn && !profile ? (
+          /* Returning user, verifying their existing number —
+             takes over ahead of the onboarding/role/welcome steps */
+          <Stack.Screen name="SignIn">
+            {() => (
+              <SignInScreen
+                onDone={() => setSigningIn(false)}
+                onCancel={() => setSigningIn(false)}
+              />
+            )}
+          </Stack.Screen>
+        ) : !profile && !seenOnboarding ? (
           /* What Lasan Hub is, and who each part is for */
           <Stack.Screen name="Onboarding">
             {() => <OnboardingScreen onDone={() => setSeenOnboarding(true)} />}
@@ -104,7 +122,12 @@ export default function AppNavigator() {
         ) : !profile && !chosenRole ? (
           /* Pick what you are */
           <Stack.Screen name="Auth">
-            {() => <AuthScreen onContinue={(r) => setChosenRole(r)} />}
+            {() => (
+              <AuthScreen
+                onContinue={(r) => setChosenRole(r)}
+                onExisting={() => setSigningIn(true)}
+              />
+            )}
           </Stack.Screen>
         ) : !profile && !seenWelcome ? (
           /* The pitch for that role specifically */

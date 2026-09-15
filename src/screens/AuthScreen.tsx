@@ -22,8 +22,10 @@ const CARD_W = (SCREEN_WIDTH - 48 - 20) / 3;
 
 export default function AuthScreen({
   onContinue,
+  onExisting,
 }: {
   onContinue: (role: Role) => void;
+  onExisting: () => void;
 }) {
   const { setPrefill } = useAuth();
 
@@ -139,6 +141,23 @@ export default function AuthScreen({
             />
             <Text style={styles.googleText}>
               {googleBusy ? "Signing in…" : "Continue with Google"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* No role needed here — a returning user already has one saved */}
+          <TouchableOpacity
+            style={styles.returning}
+            activeOpacity={0.7}
+            onPress={onExisting}
+          >
+            <MaterialCommunityIcons
+              name="account-check-outline"
+              size={15}
+              color="rgba(255,255,255,0.5)"
+            />
+            <Text style={styles.returningText}>
+              Already registered?{" "}
+              <Text style={styles.returningLink}>Sign in</Text>
             </Text>
           </TouchableOpacity>
 
@@ -409,6 +428,23 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
   },
   off: { opacity: 0.3 },
+
+  returning: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingVertical: 14,
+  },
+  returningText: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.5)",
+  },
+  returningLink: {
+    fontFamily: fonts.semibold,
+    color: colors.primaryLight,
+  },
 
   legal: {
     fontFamily: fonts.regular,
