@@ -20,7 +20,7 @@ import * as ImagePicker from "expo-image-picker";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
-import { saveProfile } from "../api/client";
+import { saveProfile, uploadPhoto } from "../api/client";
 import { hasVerifiedPhone } from "../lib/auth";
 import {
   Role,
@@ -79,6 +79,7 @@ export default function ProfileScreen({
 
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const toggle = (
     list: string[],
@@ -92,6 +93,7 @@ export default function ProfileScreen({
 
   /* What each role must fill in before Submit lights up */
   const ready =
+    !uploading &&
     name.trim().length > 1 &&
     (role === "influencer"
       ? instagram.trim().length > 1 && !!category
@@ -117,8 +119,22 @@ export default function ProfileScreen({
       quality: 0.7,
     });
 
-    if (!result.canceled && result.assets?.[0]) {
-      setPhoto(result.assets[0].uri);
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const localUri = result.assets[0].uri;
+
+    // Show it straight away, then swap in the uploaded URL
+    setPhoto(localUri);
+    setUploading(true);
+
+    try {
+      const url = await uploadPhoto(localUri);
+      setPhoto(url);
+    } catch (err: any) {
+      setPhoto("");
+      Alert.alert("Upload failed", err?.message || "Please try again.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -270,7 +286,11 @@ export default function ProfileScreen({
 
             <View style={{ flex: 1 }}>
               <Text style={styles.photoTitle}>
-                {photo ? "Change photo" : "Add a photo"}
+                {uploading
+                  ? "Uploading…"
+                  : photo
+                    ? "Change photo"
+                    : "Add a photo"}
               </Text>
               <Text style={styles.photoHint}>
                 {role === "vendor"

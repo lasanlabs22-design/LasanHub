@@ -165,3 +165,46 @@ export async function updateJob(
     body: JSON.stringify(payload),
   });
 }
+
+const CLOUDINARY_CLOUD = "tpd2optn";
+const CLOUDINARY_PRESET = "lasan_reels";
+
+/**
+ * Uploads a photo and returns a public URL.
+ *
+ * Gallery images are local file paths — they exist on one phone only,
+ * so the console can't display them. Uploading gives a URL that works
+ * everywhere.
+ */
+export async function uploadPhoto(uri: string): Promise<string> {
+  // Already a web URL — Google sign-in photos come through like this
+  if (uri.startsWith("http")) return uri;
+
+  const form = new FormData();
+
+  form.append("file", {
+    uri,
+    type: "image/jpeg",
+    name: "profile.jpg",
+  } as any);
+
+  form.append("upload_preset", CLOUDINARY_PRESET);
+
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+      { method: "POST", body: form },
+    );
+
+    const data = await res.json();
+
+    if (!data?.secure_url) {
+      throw new ApiError("Could not upload the photo.");
+    }
+
+    return data.secure_url;
+  } catch (err: any) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError("Could not upload the photo. Check your connection.");
+  }
+}
