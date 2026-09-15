@@ -125,3 +125,43 @@ export async function sendRequest(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export type AssignedJob = {
+  id: string;
+  status:
+    | "offered"
+    | "accepted"
+    | "declined"
+    | "in_progress"
+    | "completed"
+    | "withdrawn";
+  brief: string | null;
+  decline_reason: string | null;
+  partner_note: string | null;
+  assigned_at: string;
+  responded_at: string | null;
+  completed_at: string | null;
+  type: string;
+  title: string | null;
+  description: string | null;
+  details: Record<string, any> | null;
+  city: string | null;
+  customer_name: string;
+};
+
+/** Work offered to this partner */
+export async function fetchMyWork(): Promise<AssignedJob[]> {
+  const data = await request("/influencers/work");
+  return data.jobs || [];
+}
+
+/** Accept, decline, start or finish a job */
+export async function updateJob(
+  id: string,
+  payload: { status: string; reason?: string; note?: string },
+): Promise<void> {
+  await request(`/influencers/work/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}

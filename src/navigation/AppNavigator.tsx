@@ -17,6 +17,7 @@ import ProfileScreen from "../screens/ProfileScreen";
 import RequestsScreen from "../screens/RequestsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import SignInScreen from "../screens/SignInScreen";
+import WorkScreen from "../screens/WorkScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -26,6 +27,7 @@ const ICONS: Record<string, { on: string; off: string }> = {
   Home: { on: "view-dashboard", off: "view-dashboard-outline" },
   Support: { on: "message-text", off: "message-text-outline" },
   Account: { on: "account-circle", off: "account-circle-outline" },
+  Work: { on: "briefcase", off: "briefcase-outline" },
 };
 
 function Tabs() {
@@ -63,6 +65,7 @@ function Tabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Support" component={RequestsScreen} />
+      <Tab.Screen name="Work" component={WorkScreen} />
       <Tab.Screen name="Account" component={SettingsScreen} />
     </Tab.Navigator>
   );
