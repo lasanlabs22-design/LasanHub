@@ -172,39 +172,56 @@ const CLOUDINARY_PRESET = "lasan_reels";
 /**
  * Uploads a photo and returns a public URL.
  *
- * Gallery images are local file paths — they exist on one phone only,
- * so the console can't display them. Uploading gives a URL that works
- * everywhere.
+ * XMLHttpRequest rather than fetch — React Native's fetch can't send
+ * a file URI in FormData.
  */
-export async function uploadPhoto(uri: string): Promise<string> {
-  // Already a web URL — Google sign-in photos come through like this
-  if (uri.startsWith("http")) return uri;
+export function uploadPhoto(uri: string): Promise<string> {
+  // Already a web URL — Google sign-in photos arrive like this
+  if (uri.startsWith("http")) return Promise.resolve(uri);
 
-  const form = new FormData();
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
 
-  form.append("file", {
-    uri,
-    type: "image/jpeg",
-    name: "profile.jpg",
-  } as any);
+    form.append("file", {
+      uri,
+      type: "image/jpeg",
+      name: "profile.jpg",
+    } as any);
 
-  form.append("upload_preset", CLOUDINARY_PRESET);
+    form.append("upload_preset", CLOUDINARY_PRESET);
 
-  try {
-    const res = await fetch(
+    const xhr = new XMLHttpRequest();
+
+    xhr.onload = () => {
+      if (xhr.status !== 200) {
+        console.log("Cloudinary rejected the photo:", xhr.responseText);
+        reject(new ApiError("Could not upload the photo."));
+        return;
+      }
+
+      try {
+        const data = JSON.parse(xhr.responseText);
+
+        if (!data?.secure_url) {
+          reject(new ApiError("Could not upload the photo."));
+          return;
+        }
+
+        resolve(data.secure_url);
+      } catch {
+        reject(new ApiError("Could not upload the photo."));
+      }
+    };
+
+    xhr.onerror = () =>
+      reject(
+        new ApiError("Could not upload the photo. Check your connection."),
+      );
+
+    xhr.open(
+      "POST",
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
-      { method: "POST", body: form },
     );
-
-    const data = await res.json();
-
-    if (!data?.secure_url) {
-      throw new ApiError("Could not upload the photo.");
-    }
-
-    return data.secure_url;
-  } catch (err: any) {
-    if (err instanceof ApiError) throw err;
-    throw new ApiError("Could not upload the photo. Check your connection.");
-  }
+    xhr.send(form);
+  });
 }
