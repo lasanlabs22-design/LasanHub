@@ -69,10 +69,6 @@ export default function ProfileScreen({
   const [companyName, setCompanyName] = useState(profile?.company_name || "");
   const [gst, setGst] = useState(profile?.gst_number || "");
   const [services, setServices] = useState<string[]>(profile?.services || []);
-  const [otherService, setOtherService] = useState(
-    profile?.other_service || "",
-  );
-  const [showOther, setShowOther] = useState(!!profile?.other_service);
 
   /* Freelancer */
   const [portfolio, setPortfolio] = useState(profile?.portfolio_url || "");
@@ -100,8 +96,7 @@ export default function ProfileScreen({
     (role === "influencer"
       ? instagram.trim().length > 1 && !!category
       : role === "vendor"
-        ? companyName.trim().length > 1 &&
-          (services.length > 0 || otherService.trim().length > 1)
+        ? companyName.trim().length > 1 && services.length > 0
         : skills.length > 0);
 
   const pickPhoto = async () => {
@@ -152,8 +147,6 @@ export default function ProfileScreen({
         companyName: role === "vendor" ? companyName.trim() : undefined,
         gstNumber: role === "vendor" ? gst.trim() || undefined : undefined,
         services: role === "vendor" ? services : undefined,
-        otherService:
-          role === "vendor" ? otherService.trim() || undefined : undefined,
 
         portfolioUrl:
           role === "freelancer" ? portfolio.trim() || undefined : undefined,
@@ -383,35 +376,7 @@ export default function ProfileScreen({
                     onPress={() => toggle(services, setServices, s)}
                   />
                 ))}
-
-                <Chip
-                  label="Other"
-                  active={showOther}
-                  onPress={() => {
-                    setShowOther(!showOther);
-                    if (showOther) setOtherService("");
-                  }}
-                />
               </View>
-
-              {showOther && (
-                <View style={styles.otherBox}>
-                  <MaterialCommunityIcons
-                    name="pencil-outline"
-                    size={17}
-                    color={colors.primary}
-                  />
-                  <TextInput
-                    style={styles.otherInput}
-                    placeholder="What else do you do?"
-                    placeholderTextColor={colors.textLight}
-                    value={otherService}
-                    onChangeText={setOtherService}
-                    maxLength={60}
-                    autoFocus
-                  />
-                </View>
-              )}
 
               <View style={[styles.row, { marginTop: 20 }]}>
                 <View style={{ flex: 1 }}>
@@ -707,26 +672,6 @@ const styles = StyleSheet.create({
     color: colors.textMid,
   },
   chipTextActive: { color: colors.white, fontFamily: fonts.semibold },
-
-  otherBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    paddingHorizontal: 14,
-    height: 52,
-    marginTop: 12,
-  },
-  otherInput: {
-    flex: 1,
-    fontFamily: fonts.regular,
-    fontSize: 15,
-    color: colors.textDark,
-    padding: 0,
-  },
 
   row: { flexDirection: "row", marginTop: 20 },
 

@@ -30,16 +30,31 @@ export const ROLES: {
   },
 ];
 
-/** What a vendor can offer. Mirrors the offline services in Lasan Mart. */
+/**
+ * These strings must match Lasan Mart's offline marketing labels
+ * character for character. A request for "Hoardings" is matched
+ * against vendors who ticked "Hoardings" — so this is a shared
+ * vocabulary between the two apps, not a free choice.
+ *
+ * If you change a label in Lasan Mart's homeCategories.ts, change it
+ * here too, and migrate any vendor rows holding the old wording.
+ */
 export const VENDOR_SERVICES = [
-  "Outdoor Ads",
   "Hoardings",
-  "Event Marketing",
+  "Outdoor Ads",
+  "LED Boards",
+  "Transit Ads",
   "Print Media",
+  "Event Marketing",
+  "Local Engagement",
+  "Direct Marketing",
   "Vehicle Branding",
-  "Corporate & B2B Events",
+  "Traditional Media",
   "Field Sales",
+  "Telecalling",
   "Display Boards",
+  "Exhibitions",
+  "Corporate Events",
 ];
 
 /** What a freelancer can offer */
