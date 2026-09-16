@@ -18,6 +18,7 @@ import RequestsScreen from "../screens/RequestsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import SignInScreen from "../screens/SignInScreen";
 import WorkScreen from "../screens/WorkScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -162,6 +163,10 @@ export default function AppNavigator() {
               name="Profile"
               component={ProfileScreen}
               options={{ presentation: "modal" }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
             />
           </>
         )}

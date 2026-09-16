@@ -20,6 +20,7 @@ import { fonts } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { roleMeta, Role } from "../data/roles";
 import StrengthCard from "../components/StrengthCard";
+import { fetchUnreadCount } from "../api/client";
 
 /** What "you're live" actually means, per role */
 const LIVE_TEXT: Record<Role, string> = {
@@ -72,16 +73,22 @@ export default function HomeScreen({ navigation }: any) {
   const { profile, phone, refreshProfile } = useAuth();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [unread, setUnread] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
-    }, [refreshProfile]),
+
+      if (profile) {
+        fetchUnreadCount().then(setUnread);
+      }
+    }, [refreshProfile, profile]),
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
     await refreshProfile();
+    setUnread(await fetchUnreadCount());
     setRefreshing(false);
   };
 
@@ -153,16 +160,39 @@ export default function HomeScreen({ navigation }: any) {
               ) : null}
             </View>
 
-            {profile && (
-              <View style={styles.rolePill}>
+            {/* The bell sits above the role tag, stacked to the right */}
+            <View style={styles.rightStack}>
+              <TouchableOpacity
+                style={styles.bell}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate("Notifications")}
+              >
                 <MaterialCommunityIcons
-                  name={meta.icon as any}
-                  size={12}
+                  name={unread > 0 ? "bell-badge" : "bell-outline"}
+                  size={19}
                   color={colors.white}
                 />
-                <Text style={styles.roleText}>{meta.label}</Text>
-              </View>
-            )}
+
+                {unread > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {unread > 9 ? "9+" : unread}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {profile && (
+                <View style={styles.rolePill}>
+                  <MaterialCommunityIcons
+                    name={meta.icon as any}
+                    size={11}
+                    color={colors.white}
+                  />
+                  <Text style={styles.roleText}>{meta.label}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.statusRow}>
@@ -288,6 +318,36 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: "rgba(255,255,255,0.62)",
     marginTop: 2,
+  },
+
+  rightStack: { alignItems: "flex-end", gap: 10 },
+
+  bell: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: "#FFC529",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  badgeText: {
+    fontFamily: fonts.bold,
+    fontSize: 9.5,
+    color: colors.ink,
   },
 
   rolePill: {

@@ -225,3 +225,47 @@ export function uploadPhoto(uri: string): Promise<string> {
     xhr.send(form);
   });
 }
+
+export type PartnerNotification = {
+  id: string;
+  assignment_id: string | null;
+  type: "work" | "profile";
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+/** Everything this partner has been told */
+export async function fetchNotifications(): Promise<{
+  notifications: PartnerNotification[];
+  unread: number;
+}> {
+  const data = await request("/influencers/notifications");
+  return {
+    notifications: data.notifications || [],
+    unread: data.unread || 0,
+  };
+}
+
+/** Just the badge number. Never throws — a failed badge isn't worth an error. */
+export async function fetchUnreadCount(): Promise<number> {
+  try {
+    const data = await request("/influencers/notifications/count");
+    return data.unread || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Mark one read, or all of them if no id is given */
+export async function markNotificationsRead(id?: string): Promise<void> {
+  try {
+    await request("/influencers/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    });
+  } catch {
+    // Not worth surfacing
+  }
+}
