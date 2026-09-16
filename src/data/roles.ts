@@ -59,18 +59,10 @@ export const VENDOR_SERVICES = [
 
 /** What a freelancer can offer */
 export const FREELANCER_SKILLS = [
-  "Graphic Design",
-  "Video Editing",
   "Photography",
   "Videography",
-  "Content Writing",
-  "Social Media",
-  "Web Development",
-  "App Development",
-  "SEO",
-  "Animation",
-  "Voice Over",
-  "Illustration",
+  "Video Editing",
+  "Digital Marketing",
 ];
 
 /** For creators — what they post about */
