@@ -266,6 +266,33 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>HELP</Text>
 
         <TouchableOpacity
+          style={[styles.actionRow, { marginBottom: 10 }]}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate("Faq")}
+        >
+          <View
+            style={[styles.actionIcon, { backgroundColor: colors.primarySoft }]}
+          >
+            <MaterialCommunityIcons
+              name="help-circle-outline"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionTitle}>Common questions</Text>
+            <Text style={styles.actionText}>
+              Approval, work, payments and your account
+            </Text>
+          </View>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={20}
+            color={colors.textLight}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.actionRow}
           activeOpacity={0.85}
           onPress={whatsapp}

@@ -19,6 +19,7 @@ import SettingsScreen from "../screens/SettingsScreen";
 import SignInScreen from "../screens/SignInScreen";
 import WorkScreen from "../screens/WorkScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import FaqScreen from "../screens/FaqScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -168,6 +169,7 @@ export default function AppNavigator() {
               name="Notifications"
               component={NotificationsScreen}
             />
+            <Stack.Screen name="Faq" component={FaqScreen} />
           </>
         )}
       </Stack.Navigator>
