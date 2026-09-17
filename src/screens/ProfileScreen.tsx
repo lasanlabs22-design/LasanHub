@@ -96,10 +96,20 @@ export default function ProfileScreen({
     !uploading &&
     name.trim().length > 1 &&
     (role === "influencer"
-      ? instagram.trim().length > 1 && !!category
+      ? instagram.trim().length > 1 &&
+        !!category &&
+        followers.trim().length > 0 &&
+        city.trim().length > 1 &&
+        !!rate &&
+        Number(rate) > 0
       : role === "vendor"
-        ? companyName.trim().length > 1 && services.length > 0
-        : skills.length > 0);
+        ? companyName.trim().length > 1 &&
+          services.length > 0 &&
+          gst.trim().length > 4 &&
+          city.trim().length > 1
+        : skills.length > 0 &&
+          portfolio.trim().length > 4 &&
+          city.trim().length > 1);
 
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -307,7 +317,7 @@ export default function ProfileScreen({
           </TouchableOpacity>
 
           <Field
-            label="Full name"
+            label="Full name *"
             value={name}
             onChangeText={setName}
             placeholder="As it appears on your ID"
@@ -317,7 +327,7 @@ export default function ProfileScreen({
           {role === "influencer" && (
             <>
               <Field
-                label="Instagram handle"
+                label="Instagram handle *"
                 prefix="@"
                 value={instagram}
                 onChangeText={(t) =>
@@ -329,7 +339,7 @@ export default function ProfileScreen({
                 hint="We check this against your profile before approving"
               />
 
-              <Text style={styles.groupLabel}>What do you post about?</Text>
+              <Text style={styles.groupLabel}>What do you post about? *</Text>
               <View style={styles.chipWrap}>
                 {CREATOR_CATEGORIES.map((c) => {
                   const active = category === c;
@@ -347,7 +357,7 @@ export default function ProfileScreen({
               <View style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Field
-                    label="Followers"
+                    label="Followers *"
                     value={followers}
                     onChangeText={setFollowers}
                     placeholder="12.5K"
@@ -356,7 +366,7 @@ export default function ProfileScreen({
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Field
-                    label="City"
+                    label="City *"
                     value={city}
                     onChangeText={setCity}
                     placeholder="Tirupati"
@@ -365,7 +375,7 @@ export default function ProfileScreen({
               </View>
 
               <Field
-                label="Rate per post"
+                label="Rate per post *"
                 prefix="₹"
                 value={rate}
                 onChangeText={(t) => setRate(t.replace(/[^0-9]/g, ""))}
@@ -380,13 +390,13 @@ export default function ProfileScreen({
           {role === "vendor" && (
             <>
               <Field
-                label="Company name"
+                label="Company name *"
                 value={companyName}
                 onChangeText={setCompanyName}
                 placeholder="As registered"
               />
 
-              <Text style={styles.groupLabel}>What do you offer?</Text>
+              <Text style={styles.groupLabel}>What do you offer? *</Text>
               <View style={styles.chipWrap}>
                 {VENDOR_SERVICES.map((s) => (
                   <Chip
@@ -401,7 +411,7 @@ export default function ProfileScreen({
               <View style={[styles.row, { marginTop: 20 }]}>
                 <View style={{ flex: 1 }}>
                   <Field
-                    label="GST number"
+                    label="GST number *"
                     value={gst}
                     onChangeText={(t) => setGst(t.toUpperCase())}
                     placeholder="22AAAAA0000A1Z5"
@@ -412,7 +422,7 @@ export default function ProfileScreen({
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Field
-                    label="City"
+                    label="City *"
                     value={city}
                     onChangeText={setCity}
                     placeholder="Tirupati"
@@ -435,7 +445,7 @@ export default function ProfileScreen({
           {/* ---------------- Freelancer ---------------- */}
           {role === "freelancer" && (
             <>
-              <Text style={styles.groupLabel}>What do you do?</Text>
+              <Text style={styles.groupLabel}>What do you do? *</Text>
               <View style={styles.chipWrap}>
                 {FREELANCER_SKILLS.map((s) => (
                   <Chip
@@ -449,13 +459,13 @@ export default function ProfileScreen({
 
               <View style={{ marginTop: 20 }}>
                 <Field
-                  label="Portfolio link"
+                  label="Portfolio link *"
                   value={portfolio}
                   onChangeText={setPortfolio}
-                  placeholder="Behance, Drive, or your own site"
+                  placeholder="Behance, Drive folder, Instagram, your site"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  hint="Anything that shows your work"
+                  hint="Anything that shows your work — a Drive link is fine"
                 />
               </View>
 
@@ -475,7 +485,7 @@ export default function ProfileScreen({
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Field
-                    label="City"
+                    label="City *"
                     value={city}
                     onChangeText={setCity}
                     placeholder="Tirupati"
@@ -503,6 +513,7 @@ export default function ProfileScreen({
             placeholder="you@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
+            hint="Optional, but it's how we send briefs and anything in writing"
           />
 
           <Field
