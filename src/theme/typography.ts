@@ -9,34 +9,38 @@ export const fonts = {
   bold: "PlusJakartaSans_700Bold",
 };
 
-export const type = {
-  display: {
-    fontFamily: fonts.bold,
-    fontSize: 28,
-    letterSpacing: -0.7,
-  },
-  title: {
-    fontFamily: fonts.semibold,
-    fontSize: 19,
-    letterSpacing: -0.4,
-  },
-  heading: {
-    fontFamily: fonts.semibold,
-    fontSize: 15.5,
-    letterSpacing: -0.2,
-  },
-  body: {
-    fontFamily: fonts.regular,
-    fontSize: 14.5,
-    lineHeight: 21,
-  },
-  label: {
-    fontFamily: fonts.semibold,
-    fontSize: 11,
-    letterSpacing: 0.7,
-  },
-  caption: {
-    fontFamily: fonts.regular,
-    fontSize: 12.5,
-  },
+/**
+ * The only font sizes the app uses. Nothing below 11 — that's the
+ * smallest that stays legible on a budget phone in sunlight.
+ */
+export const size = {
+  /** Tab labels, badges, uppercase section labels */
+  xxs: 11,
+  /** Timestamps, hints */
+  xs: 12,
+  /** Secondary lines, chips, form labels */
+  sm: 13,
+  /** Body copy */
+  md: 14,
+  /** Inputs, list titles */
+  base: 15,
+  /** Buttons, card titles */
+  lg: 16,
+  /** Screen header titles */
+  xl: 17,
+  /** Sheet and card headlines */
+  h3: 20,
+  /** Big numbers, avatar letters */
+  h2: 22,
+  /** Tab screen titles */
+  h1: 24,
+  /** Dark-screen headlines */
+  display: 30,
+  hero: 34,
 };
+
+/**
+ * Cap for text inside fixed-size shapes (badges, code boxes, pills).
+ * Everything else scales freely with the phone's font setting.
+ */
+export const TIGHT_SCALE = 1.3;

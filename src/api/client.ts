@@ -1,6 +1,8 @@
 import { getAuthToken } from "../lib/auth";
+import { devLog } from "../lib/log";
+import { API_URL, CLOUDINARY_CLOUD, CLOUDINARY_PRESET } from "../config";
+import type { Role } from "../data/roles";
 
-const API_URL = "https://lasanmartapihono-production-a721.up.railway.app";
 const TIMEOUT_MS = 15000;
 
 export type CreatorStatus = "pending" | "approved" | "rejected" | "paused";
@@ -8,7 +10,7 @@ export type CreatorStatus = "pending" | "approved" | "rejected" | "paused";
 export type CreatorProfile = {
   id: string;
   phone: string;
-  role: "influencer" | "vendor" | "freelancer";
+  role: Role;
   name: string;
   email: string | null;
   photo_url: string | null;
@@ -40,20 +42,35 @@ export type CreatorRequest = {
 };
 
 export class ApiError extends Error {
-  constructor(message: string) {
+  /** HTTP status, or 0 when the server couldn't be reached */
+  status: number;
+
+  constructor(message: string, status = 0) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
   }
 }
 
-async function request(path: string, options: RequestInit = {}) {
+/**
+ * Called when the server rejects our token even after a fresh one —
+ * the account was disabled or the session revoked. AuthContext signs
+ * the person out rather than leaving them on empty screens.
+ */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
+async function send(path: string, options: RequestInit, forceRefresh: boolean) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  const token = await getAuthToken();
+  const token = await getAuthToken(forceRefresh);
 
   try {
-    const res = await fetch(`${API_URL}${path}`, {
+    return await fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -62,24 +79,37 @@ async function request(path: string, options: RequestInit = {}) {
       },
       signal: controller.signal,
     });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new ApiError(data?.error || "Something went wrong.");
-    }
-
-    return data;
-  } catch (err: any) {
-    if (err instanceof ApiError) throw err;
-    console.log("Network error:", err?.message);
-    throw new ApiError("Couldn't reach our servers. Check your connection.");
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** Their profile, or null if they haven't made one yet */
+async function request(path: string, options: RequestInit = {}) {
+  let res: Response;
+
+  try {
+    res = await send(path, options, false);
+
+    // An expired token is normal — get a fresh one and try once more
+    if (res.status === 401) {
+      res = await send(path, options, true);
+    }
+  } catch (err: any) {
+    devLog("Network error:", err?.message);
+    throw new ApiError("Couldn't reach our servers. Check your connection.");
+  }
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    if (res.status === 401) onUnauthorized?.();
+    throw new ApiError(data?.error || "Something went wrong.", res.status);
+  }
+
+  return data;
+}
+
+/** Their profile, or null if they haven't made one yet. Throws if the server can't be reached. */
 export async function fetchMyProfile(): Promise<CreatorProfile | null> {
   const data = await request("/influencers/me");
   return data.influencer || null;
@@ -126,15 +156,17 @@ export async function sendRequest(payload: {
   });
 }
 
+export type JobStatus =
+  | "offered"
+  | "accepted"
+  | "declined"
+  | "in_progress"
+  | "completed"
+  | "withdrawn";
+
 export type AssignedJob = {
   id: string;
-  status:
-    | "offered"
-    | "accepted"
-    | "declined"
-    | "in_progress"
-    | "completed"
-    | "withdrawn";
+  status: JobStatus;
   brief: string | null;
   decline_reason: string | null;
   partner_note: string | null;
@@ -158,16 +190,17 @@ export async function fetchMyWork(): Promise<AssignedJob[]> {
 /** Accept, decline, start or finish a job */
 export async function updateJob(
   id: string,
-  payload: { status: string; reason?: string; note?: string },
+  payload: {
+    status: "accepted" | "declined" | "in_progress" | "completed";
+    reason?: string;
+    note?: string;
+  },
 ): Promise<void> {
-  await request(`/influencers/work/${id}`, {
+  await request(`/influencers/work/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
-
-const CLOUDINARY_CLOUD = "tpd2optn";
-const CLOUDINARY_PRESET = "lasan_reels";
 
 /**
  * Uploads a photo and returns a public URL.
@@ -191,32 +224,31 @@ export function uploadPhoto(uri: string): Promise<string> {
     form.append("upload_preset", CLOUDINARY_PRESET);
 
     const xhr = new XMLHttpRequest();
+    xhr.timeout = 60000;
+
+    const fail = (message = "Could not upload the photo.") =>
+      reject(new ApiError(message));
 
     xhr.onload = () => {
       if (xhr.status !== 200) {
-        console.log("Cloudinary rejected the photo:", xhr.responseText);
-        reject(new ApiError("Could not upload the photo."));
+        devLog("Cloudinary rejected the photo:", xhr.responseText);
+        fail();
         return;
       }
 
       try {
         const data = JSON.parse(xhr.responseText);
-
-        if (!data?.secure_url) {
-          reject(new ApiError("Could not upload the photo."));
-          return;
-        }
-
-        resolve(data.secure_url);
+        if (data?.secure_url) resolve(data.secure_url);
+        else fail();
       } catch {
-        reject(new ApiError("Could not upload the photo."));
+        fail();
       }
     };
 
     xhr.onerror = () =>
-      reject(
-        new ApiError("Could not upload the photo. Check your connection."),
-      );
+      fail("Could not upload the photo. Check your connection.");
+    xhr.ontimeout = () =>
+      fail("The upload took too long. Check your connection.");
 
     xhr.open(
       "POST",

@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Image,
   Alert,
   KeyboardAvoidingView,
@@ -15,10 +14,11 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { saveProfile, uploadPhoto } from "../api/client";
 import { hasVerifiedPhone } from "../lib/auth";
@@ -31,15 +31,27 @@ import {
 } from "../data/roles";
 import Field from "../components/Field";
 import Button from "../components/Button";
-import VerifySheet from "../screens/VerifySheet";
+import Chip from "../components/Chip";
+import ScreenHeader from "../components/ScreenHeader";
 import TrustPanel from "../components/TrustPanel";
+import VerifySheet from "./VerifySheet";
 
+/** Letters, numbers, dots and underscores — what Instagram allows */
+const cleanHandle = (t: string) => t.replace(/[^a-zA-Z0-9._]/g, "");
+
+/**
+ * Two uses: the sign-up form (CreateProfile, where `role` and `onBack`
+ * come from the navigator) and editing an existing profile (Profile).
+ */
 export default function ProfileScreen({
-  navigation,
   role: roleProp,
   onBack,
-}: any) {
+}: {
+  role?: Role;
+  onBack?: () => void;
+}) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { profile, prefill, phone, refreshProfile, markSignedIn } = useAuth();
 
   const isEditing = !!profile;
@@ -80,6 +92,9 @@ export default function ProfileScreen({
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const inFlight = useRef(false);
+
+  const goBack = () => (isEditing ? navigation.goBack() : onBack?.());
 
   const toggle = (
     list: string[],
@@ -92,35 +107,30 @@ export default function ProfileScreen({
   };
 
   /* What each role must fill in before Submit lights up */
-  const ready =
-    !uploading &&
-    name.trim().length > 1 &&
-    (role === "influencer"
+  const hasCity = city.trim().length > 1;
+  const roleReady =
+    role === "influencer"
       ? instagram.trim().length > 1 &&
         !!category &&
         followers.trim().length > 0 &&
-        city.trim().length > 1 &&
-        !!rate &&
+        hasCity &&
         Number(rate) > 0
       : role === "vendor"
         ? companyName.trim().length > 1 &&
           services.length > 0 &&
           gst.trim().length > 4 &&
-          city.trim().length > 1
-        : skills.length > 0 &&
-          portfolio.trim().length > 4 &&
-          city.trim().length > 1);
+          hasCity
+        : skills.length > 0 && portfolio.trim().length > 4 && hasCity;
 
+  const ready = !uploading && name.trim().length > 1 && roleReady;
+
+  /**
+   * The system photo picker needs no permission on Android 13+ or
+   * iOS 14+, so we don't ask for one — asking would mean declaring
+   * READ_MEDIA_IMAGES, which Google Play restricts.
+   */
   const pickPhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission needed",
-        "Allow photo access so you can set your picture.",
-      );
-      return;
-    }
+    if (uploading) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -131,6 +141,7 @@ export default function ProfileScreen({
 
     if (result.canceled || !result.assets?.[0]) return;
 
+    const previous = photo;
     const localUri = result.assets[0].uri;
 
     // Show it straight away, then swap in the uploaded URL
@@ -138,10 +149,10 @@ export default function ProfileScreen({
     setUploading(true);
 
     try {
-      const url = await uploadPhoto(localUri);
-      setPhoto(url);
+      setPhoto(await uploadPhoto(localUri));
     } catch (err: any) {
-      setPhoto("");
+      // Put back whatever they had, rather than wiping it
+      setPhoto(previous);
       Alert.alert("Upload failed", err?.message || "Please try again.");
     } finally {
       setUploading(false);
@@ -150,6 +161,8 @@ export default function ProfileScreen({
 
   /** The actual save — only runs once the number is verified */
   const doSave = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
 
     try {
@@ -193,7 +206,7 @@ export default function ProfileScreen({
           {
             text: "OK",
             onPress: () => {
-              if (isEditing) navigation?.goBack?.();
+              if (isEditing) navigation.goBack();
             },
           },
         ],
@@ -201,6 +214,7 @@ export default function ProfileScreen({
     } catch (err: any) {
       Alert.alert("Could not save", err?.message || "Please try again.");
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -223,27 +237,10 @@ export default function ProfileScreen({
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.header}>
-          {isEditing || onBack ? (
-            <TouchableOpacity
-              style={styles.back}
-              onPress={() => (isEditing ? navigation.goBack() : onBack?.())}
-            >
-              <MaterialCommunityIcons
-                name="arrow-left"
-                size={21}
-                color={colors.textDark}
-              />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 38 }} />
-          )}
-
-          <Text style={styles.headerTitle}>
-            {isEditing ? "Edit profile" : `${meta.label} profile`}
-          </Text>
-          <View style={{ width: 38 }} />
-        </View>
+        <ScreenHeader
+          title={isEditing ? "Edit profile" : `${meta.label} profile`}
+          onBack={isEditing || onBack ? goBack : undefined}
+        />
 
         <ScrollView
           contentContainerStyle={[
@@ -255,12 +252,12 @@ export default function ProfileScreen({
         >
           {!isEditing && (
             <View
-              style={[styles.roleBanner, { borderColor: `${meta.accent}40` }]}
+              style={[styles.roleBanner, { borderColor: tint(meta.accent, 0.25) }]}
             >
               <View
                 style={[
                   styles.roleBannerIcon,
-                  { backgroundColor: `${meta.accent}1A` },
+                  { backgroundColor: tint(meta.accent, 0.1) },
                 ]}
               >
                 <MaterialCommunityIcons
@@ -281,9 +278,16 @@ export default function ProfileScreen({
             style={styles.photoRow}
             activeOpacity={0.85}
             onPress={pickPhoto}
+            disabled={uploading}
+            accessibilityRole="button"
+            accessibilityLabel={photo ? "Change photo" : "Add a photo"}
           >
             {photo ? (
-              <Image source={{ uri: photo }} style={styles.photo} />
+              <Image
+                source={{ uri: photo }}
+                style={styles.photo}
+                accessibilityIgnoresInvertColors
+              />
             ) : (
               <View style={[styles.photo, styles.photoEmpty]}>
                 <MaterialCommunityIcons
@@ -321,6 +325,8 @@ export default function ProfileScreen({
             value={name}
             onChangeText={setName}
             placeholder="As it appears on your ID"
+            autoComplete="name"
+            maxLength={80}
           />
 
           {/* ---------------- Creator ---------------- */}
@@ -330,12 +336,11 @@ export default function ProfileScreen({
                 label="Instagram handle *"
                 prefix="@"
                 value={instagram}
-                onChangeText={(t) =>
-                  setInstagram(t.replace(/[^a-zA-Z0-9._]/g, ""))
-                }
+                onChangeText={(t) => setInstagram(cleanHandle(t))}
                 placeholder="yourhandle"
                 autoCapitalize="none"
                 autoCorrect={false}
+                maxLength={30}
                 hint="We check this against your profile before approving"
               />
 
@@ -361,16 +366,12 @@ export default function ProfileScreen({
                     value={followers}
                     onChangeText={setFollowers}
                     placeholder="12.5K"
+                    maxLength={20}
                   />
                 </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <Field
-                    label="City *"
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="Tirupati"
-                  />
+                  <CityField value={city} onChangeText={setCity} />
                 </View>
               </View>
 
@@ -381,6 +382,7 @@ export default function ProfileScreen({
                 onChangeText={(t) => setRate(t.replace(/[^0-9]/g, ""))}
                 placeholder="5000"
                 keyboardType="number-pad"
+                maxLength={8}
                 hint="What you charge for one sponsored post"
               />
             </>
@@ -394,6 +396,7 @@ export default function ProfileScreen({
                 value={companyName}
                 onChangeText={setCompanyName}
                 placeholder="As registered"
+                maxLength={120}
               />
 
               <Text style={styles.groupLabel}>What do you offer? *</Text>
@@ -416,17 +419,13 @@ export default function ProfileScreen({
                     onChangeText={(t) => setGst(t.toUpperCase())}
                     placeholder="22AAAAA0000A1Z5"
                     autoCapitalize="characters"
+                    autoCorrect={false}
                     maxLength={15}
                   />
                 </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <Field
-                    label="City *"
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="Tirupati"
-                  />
+                  <CityField value={city} onChangeText={setCity} />
                 </View>
               </View>
 
@@ -465,6 +464,8 @@ export default function ProfileScreen({
                   placeholder="Behance, Drive folder, Instagram, your site"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType="url"
+                  maxLength={300}
                   hint="Anything that shows your work — a Drive link is fine"
                 />
               </View>
@@ -475,21 +476,16 @@ export default function ProfileScreen({
                     label="Instagram"
                     prefix="@"
                     value={instagram}
-                    onChangeText={(t) =>
-                      setInstagram(t.replace(/[^a-zA-Z0-9._]/g, ""))
-                    }
+                    onChangeText={(t) => setInstagram(cleanHandle(t))}
                     placeholder="optional"
                     autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={30}
                   />
                 </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <Field
-                    label="City *"
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="Tirupati"
-                  />
+                  <CityField value={city} onChangeText={setCity} />
                 </View>
               </View>
 
@@ -513,6 +509,9 @@ export default function ProfileScreen({
             placeholder="you@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            maxLength={120}
             hint="Optional, but it's how we send briefs and anything in writing"
           />
 
@@ -574,56 +573,27 @@ export default function ProfileScreen({
   );
 }
 
-/* ---------- Pieces ---------- */
-
-function Chip({
-  label,
-  active,
-  onPress,
+function CityField({
+  value,
+  onChangeText,
 }: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
+  value: string;
+  onChangeText: (t: string) => void;
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.chip, active && styles.chipActive]}
-      activeOpacity={0.85}
-      onPress={onPress}
-    >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
+    <Field
+      label="City *"
+      value={value}
+      onChangeText={onChangeText}
+      placeholder="Tirupati"
+      autoCapitalize="words"
+      maxLength={60}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  back: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 17,
-    color: colors.textDark,
-    letterSpacing: -0.3,
-  },
 
   content: { padding: 20 },
 
@@ -646,7 +616,7 @@ const styles = StyleSheet.create({
   roleBannerText: {
     flex: 1,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     lineHeight: 19,
     color: colors.textMid,
   },
@@ -668,41 +638,23 @@ const styles = StyleSheet.create({
   },
   photoTitle: {
     fontFamily: fonts.semibold,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.textDark,
   },
   photoHint: {
     fontFamily: fonts.regular,
-    fontSize: 12.5,
+    fontSize: size.sm,
     color: colors.textLight,
     marginTop: 2,
   },
 
   groupLabel: {
     fontFamily: fonts.medium,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.textMid,
     marginBottom: 10,
   },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.textMid,
-  },
-  chipTextActive: { color: colors.white, fontFamily: fonts.semibold },
 
   row: { flexDirection: "row", marginTop: 20 },
 
@@ -716,14 +668,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   lockedText: {
+    flex: 1,
     fontFamily: fonts.medium,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.textMid,
   },
 
   note: {
     fontFamily: fonts.regular,
-    fontSize: 12,
+    fontSize: size.xs,
     color: colors.textLight,
     textAlign: "center",
     marginTop: 14,

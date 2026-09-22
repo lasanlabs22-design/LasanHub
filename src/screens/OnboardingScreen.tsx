@@ -1,21 +1,23 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  Dimensions,
+  ScrollView,
   TouchableOpacity,
   Animated,
   Easing,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
+import { roleMeta } from "../data/roles";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SLIDE_MS = 4500;
 
 type Slide = {
@@ -35,7 +37,7 @@ const SLIDES: Slide[] = [
     title: "Where local\ntalent gets found",
     body: "Businesses across Andhra Pradesh use Lasan Mart to find marketing help. This is where the people who provide it sign up.",
     icon: "star-four-points",
-    accent: "#7B3FC4",
+    accent: colors.primaryLight,
     points: [
       "One profile, reviewed once",
       "Work comes to you",
@@ -48,7 +50,7 @@ const SLIDES: Slide[] = [
     title: "Brands find you,\nnot the reverse",
     body: "Set your rate once. Businesses browse creators by budget and category, and our team brings you the brief.",
     icon: "account-star-outline",
-    accent: "#C13584",
+    accent: roleMeta("influencer").accent,
     points: [
       "Instagram, YouTube, city pages",
       "You set your own rate",
@@ -61,7 +63,7 @@ const SLIDES: Slide[] = [
     title: "Steady work,\nwithout the chasing",
     body: "Hoardings, printing, events, field teams — when a client needs it, we come to the vendors on this list first.",
     icon: "storefront-outline",
-    accent: "#0EA97A",
+    accent: roleMeta("vendor").accent,
     points: [
       "Outdoor, print, events, branding",
       "Real briefs, already paid for",
@@ -74,7 +76,7 @@ const SLIDES: Slide[] = [
     title: "Get briefed,\nnot ghosted",
     body: "Design, video, writing, development. No bidding wars, no undercutting, no chasing invoices.",
     icon: "laptop",
-    accent: "#3A86FF",
+    accent: roleMeta("freelancer").accent,
     points: [
       "Show your portfolio once",
       "Scoped briefs, priced upfront",
@@ -84,7 +86,10 @@ const SLIDES: Slide[] = [
 ];
 
 export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
-  const listRef = useRef<FlatList>(null);
+  /* Live width, so paging stays right on split-screen and foldables */
+  const { width } = useWindowDimensions();
+
+  const listRef = useRef<FlatList<Slide>>(null);
   const indexRef = useRef(0);
 
   const [index, setIndex] = useState(0);
@@ -93,15 +98,18 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
   /** Drives the thin progress bar on the active dot */
   const progress = useRef(new Animated.Value(0)).current;
 
-  const goTo = (next: number) => {
-    const clamped = Math.max(0, Math.min(SLIDES.length - 1, next));
-    indexRef.current = clamped;
-    setIndex(clamped);
-    listRef.current?.scrollToOffset({
-      offset: clamped * SCREEN_WIDTH,
-      animated: true,
-    });
-  };
+  const goTo = useCallback(
+    (next: number) => {
+      const clamped = Math.max(0, Math.min(SLIDES.length - 1, next));
+      indexRef.current = clamped;
+      setIndex(clamped);
+      listRef.current?.scrollToOffset({
+        offset: clamped * width,
+        animated: true,
+      });
+    },
+    [width],
+  );
 
   /* Auto-advance, unless they're touching it */
   useEffect(() => {
@@ -126,13 +134,15 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
     });
 
     return () => anim.stop();
-  }, [index, paused, progress]);
+  }, [index, paused, progress, goTo]);
 
   const isLast = index === SLIDES.length - 1;
   const active = SLIDES[index];
 
   return (
     <View style={styles.root}>
+      <StatusBar style="light" />
+
       <LinearGradient
         colors={[colors.ink, colors.inkSoft, colors.ink]}
         style={StyleSheet.absoluteFill}
@@ -147,7 +157,12 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
       <SafeAreaView style={{ flex: 1 }}>
         <View style={styles.topBar}>
           {!isLast && (
-            <TouchableOpacity onPress={onDone} hitSlop={12}>
+            <TouchableOpacity
+              onPress={onDone}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Skip the introduction"
+            >
               <Text style={styles.skip}>Skip</Text>
             </TouchableOpacity>
           )}
@@ -160,14 +175,19 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
+          getItemLayout={(_, i) => ({
+            length: width,
+            offset: width * i,
+            index: i,
+          })}
           onScrollBeginDrag={() => setPaused(true)}
           onMomentumScrollEnd={(e) => {
-            const i = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+            const i = Math.round(e.nativeEvent.contentOffset.x / width);
             indexRef.current = i;
             setIndex(i);
             setPaused(false);
           }}
-          renderItem={({ item }) => <SlideView slide={item} />}
+          renderItem={({ item }) => <SlideView slide={item} width={width} />}
         />
 
         {/* Progress dots */}
@@ -180,11 +200,11 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
                 key={s.key}
                 activeOpacity={0.7}
                 onPress={() => goTo(i)}
-                style={[
-                  styles.dot,
-                  isActive && styles.dotActive,
-                  isActive && { backgroundColor: "rgba(255,255,255,0.2)" },
-                ]}
+                hitSlop={{ top: 14, bottom: 14, left: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Slide ${i + 1} of ${SLIDES.length}`}
+                accessibilityState={{ selected: isActive }}
+                style={[styles.dot, isActive && styles.dotActive]}
               >
                 {isActive && (
                   <Animated.View
@@ -210,6 +230,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
             style={[styles.next, { backgroundColor: active.accent }]}
             activeOpacity={0.9}
             onPress={() => (isLast ? onDone() : goTo(index + 1))}
+            accessibilityRole="button"
           >
             <Text style={styles.nextText}>
               {isLast ? "Get started" : "Next"}
@@ -228,7 +249,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
 /* ---------- One slide ---------- */
 
-function SlideView({ slide }: { slide: Slide }) {
+function SlideView({ slide, width }: { slide: Slide; width: number }) {
   const rise = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -246,11 +267,16 @@ function SlideView({ slide }: { slide: Slide }) {
   });
 
   return (
-    <View style={styles.slide}>
+    /* Scrolls by itself if a short phone or a large font can't fit it */
+    <ScrollView
+      style={{ width }}
+      contentContainerStyle={styles.slide}
+      showsVerticalScrollIndicator={false}
+    >
       <Animated.View
         style={{ opacity: rise, transform: [{ translateY: slideUp }] }}
       >
-        <View style={[styles.icon, { backgroundColor: `${slide.accent}26` }]}>
+        <View style={[styles.icon, { backgroundColor: tint(slide.accent, 0.15) }]}>
           <MaterialCommunityIcons
             name={slide.icon as any}
             size={32}
@@ -262,7 +288,9 @@ function SlideView({ slide }: { slide: Slide }) {
           {slide.eyebrow}
         </Text>
 
-        <Text style={styles.title}>{slide.title}</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          {slide.title}
+        </Text>
         <Text style={styles.body}>{slide.body}</Text>
 
         <View style={styles.points}>
@@ -278,7 +306,7 @@ function SlideView({ slide }: { slide: Slide }) {
           ))}
         </View>
       </Animated.View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -295,22 +323,22 @@ const styles = StyleSheet.create({
   },
 
   topBar: {
-    height: 44,
+    minHeight: 44,
     paddingHorizontal: 24,
     justifyContent: "center",
     alignItems: "flex-end",
   },
   skip: {
     fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: "rgba(255,255,255,0.45)",
+    fontSize: size.md,
+    color: colors.onDarkLow,
   },
 
   slide: {
-    width: SCREEN_WIDTH,
+    flexGrow: 1,
     paddingHorizontal: 30,
+    paddingVertical: 12,
     justifyContent: "center",
-    flex: 1,
   },
   icon: {
     width: 70,
@@ -322,31 +350,32 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     fontFamily: fonts.bold,
-    fontSize: 11,
+    fontSize: size.xxs,
     letterSpacing: 2.4,
     marginBottom: 12,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 30,
+    fontSize: size.display,
     lineHeight: 38,
-    color: colors.white,
+    color: colors.onDark,
     letterSpacing: -0.9,
   },
   body: {
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: size.base,
     lineHeight: 23,
-    color: "rgba(255,255,255,0.52)",
+    color: colors.onDarkMid,
     marginTop: 14,
   },
 
   points: { marginTop: 30, gap: 13 },
   point: { flexDirection: "row", alignItems: "center", gap: 10 },
   pointText: {
+    flex: 1,
     fontFamily: fonts.medium,
-    fontSize: 14.5,
-    color: "rgba(255,255,255,0.82)",
+    fontSize: size.base,
+    color: colors.onDarkHigh,
   },
 
   dots: {
@@ -371,12 +400,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 14,
     borderRadius: 16,
   },
   nextText: {
     fontFamily: fonts.semibold,
-    fontSize: 15.5,
+    fontSize: size.lg,
     color: colors.white,
   },
 });

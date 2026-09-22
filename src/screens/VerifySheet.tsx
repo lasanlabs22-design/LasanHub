@@ -9,21 +9,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { fonts, size, TIGHT_SCALE } from "../theme/typography";
 import { sendOtp, verifyOtp, Confirmation } from "../lib/auth";
 import Button from "../components/Button";
 
 const RESEND_SECONDS = 45;
+const CODE_LENGTH = 6;
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   /** Fires once the number is verified — the caller then saves */
   onVerified: (phone: string) => void;
+  /** Button label on the code step */
+  verifyLabel?: string;
 };
 
 /**
@@ -31,7 +36,12 @@ type Props = {
  * submits their profile. A full screen rather than a bottom sheet,
  * so the keyboard doesn't cover what they're typing.
  */
-export default function VerifySheet({ visible, onClose, onVerified }: Props) {
+export default function VerifySheet({
+  visible,
+  onClose,
+  onVerified,
+  verifyLabel = "Verify & submit",
+}: Props) {
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -65,6 +75,12 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
     }
   }, [visible]);
 
+  const backToPhone = () => {
+    setStep("phone");
+    setCode("");
+    setError("");
+  };
+
   const send = async (resend = false) => {
     if (phone.length !== 10 || busy) return;
 
@@ -84,7 +100,7 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
   };
 
   const verify = async () => {
-    if (code.length !== 6 || !confirmation || busy) return;
+    if (code.length !== CODE_LENGTH || !confirmation || busy) return;
 
     Keyboard.dismiss();
     setBusy(true);
@@ -103,13 +119,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
   };
 
   const goBack = () => {
-    if (step === "code") {
-      setStep("phone");
-      setCode("");
-      setError("");
-      return;
-    }
-    onClose();
+    if (busy) return;
+    if (step === "code") backToPhone();
+    else onClose();
   };
 
   return (
@@ -119,6 +131,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
       presentationStyle="fullScreen"
       onRequestClose={goBack}
     >
+      {/* This screen is white even when opened from a dark one */}
+      <StatusBar style="dark" />
+
       <SafeAreaView style={styles.screen}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -129,6 +144,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
               style={styles.close}
               onPress={goBack}
               disabled={busy}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
             >
               <MaterialCommunityIcons
                 name="arrow-left"
@@ -138,7 +156,10 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.body}>
+          <ScrollView
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+          >
             {step === "phone" ? (
               <>
                 <View style={styles.icon}>
@@ -149,7 +170,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                   />
                 </View>
 
-                <Text style={styles.title}>Verify your number</Text>
+                <Text style={styles.title} accessibilityRole="header">
+                  Verify your number
+                </Text>
                 <Text style={styles.subtitle}>
                   This is how businesses and our team reach you. We'll text a
                   6-digit code.
@@ -163,6 +186,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                     placeholder="9876543210"
                     placeholderTextColor={colors.textLight}
                     keyboardType="number-pad"
+                    textContentType="telephoneNumber"
+                    autoComplete="tel"
+                    accessibilityLabel="Mobile number"
                     maxLength={10}
                     value={phone}
                     onChangeText={(t) => {
@@ -181,7 +207,11 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                   )}
                 </View>
 
-                {error ? <Text style={styles.error}>{error}</Text> : null}
+                {!!error && (
+                  <Text style={styles.error} accessibilityLiveRegion="polite">
+                    {error}
+                  </Text>
+                )}
 
                 <Button
                   label="Send code"
@@ -201,16 +231,15 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                   />
                 </View>
 
-                <Text style={styles.title}>Enter the code</Text>
+                <Text style={styles.title} accessibilityRole="header">
+                  Enter the code
+                </Text>
                 <Text style={styles.subtitle}>
                   Sent to +91 {phone}{" "}
                   <Text
                     style={styles.changeLink}
-                    onPress={() => {
-                      setStep("phone");
-                      setCode("");
-                      setError("");
-                    }}
+                    onPress={backToPhone}
+                    accessibilityRole="link"
                   >
                     Change
                   </Text>
@@ -220,8 +249,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                   activeOpacity={1}
                   onPress={() => codeInput.current?.focus()}
                   style={styles.boxRow}
+                  accessibilityLabel={`Verification code, ${code.length} of ${CODE_LENGTH} digits entered`}
                 >
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {Array.from({ length: CODE_LENGTH }).map((_, i) => (
                     <View
                       key={i}
                       style={[
@@ -230,7 +260,12 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                         i === code.length ? styles.codeBoxActive : null,
                       ]}
                     >
-                      <Text style={styles.codeText}>{code[i] || ""}</Text>
+                      <Text
+                        style={styles.codeText}
+                        maxFontSizeMultiplier={TIGHT_SCALE}
+                      >
+                        {code[i] || ""}
+                      </Text>
                     </View>
                   ))}
                 </TouchableOpacity>
@@ -239,7 +274,9 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                   ref={codeInput}
                   style={styles.hidden}
                   keyboardType="number-pad"
-                  maxLength={6}
+                  textContentType="oneTimeCode"
+                  autoComplete="sms-otp"
+                  maxLength={CODE_LENGTH}
                   value={code}
                   onChangeText={(t) => {
                     setCode(t.replace(/[^0-9]/g, ""));
@@ -249,12 +286,16 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                   editable={!busy}
                 />
 
-                {error ? <Text style={styles.error}>{error}</Text> : null}
+                {!!error && (
+                  <Text style={styles.error} accessibilityLiveRegion="polite">
+                    {error}
+                  </Text>
+                )}
 
                 <Button
-                  label="Verify & submit"
+                  label={verifyLabel}
                   onPress={verify}
-                  disabled={code.length !== 6}
+                  disabled={code.length !== CODE_LENGTH}
                   busy={busy}
                   style={{ marginTop: 22 }}
                 />
@@ -266,13 +307,14 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
                     style={styles.resend}
                     onPress={() => send(true)}
                     disabled={busy}
+                    accessibilityRole="button"
                   >
                     <Text style={styles.resendText}>Send a new code</Text>
                   </TouchableOpacity>
                 )}
               </>
             )}
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
@@ -282,17 +324,17 @@ export default function VerifySheet({ visible, onClose, onVerified }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
 
-  header: { paddingHorizontal: 14, paddingVertical: 12 },
+  header: { paddingHorizontal: 14, paddingVertical: 10 },
   close: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  body: { flex: 1, paddingHorizontal: 22, paddingTop: 16 },
+  body: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 24 },
 
   icon: {
     width: 50,
@@ -305,14 +347,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 24,
+    fontSize: size.h1,
     color: colors.textDark,
     letterSpacing: -0.6,
     marginBottom: 8,
   },
   subtitle: {
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: size.md,
     lineHeight: 21,
     color: colors.textMid,
     marginBottom: 26,
@@ -323,22 +365,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
-    height: 58,
+    minHeight: 58,
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
   },
-  code: { fontFamily: fonts.semibold, fontSize: 16, color: colors.textDark },
+  code: {
+    fontFamily: fonts.semibold,
+    fontSize: size.lg,
+    color: colors.textDark,
+  },
   divider: { width: 1, height: 22, backgroundColor: colors.border },
   phoneInput: {
     flex: 1,
     fontFamily: fonts.regular,
-    fontSize: 17,
+    fontSize: size.xl,
     color: colors.textDark,
     letterSpacing: 1.2,
-    padding: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 0,
   },
 
   boxRow: { flexDirection: "row", gap: 9 },
@@ -357,19 +404,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
   },
   codeBoxActive: { borderColor: colors.primary },
-  codeText: { fontFamily: fonts.bold, fontSize: 22, color: colors.textDark },
+  codeText: {
+    fontFamily: fonts.bold,
+    fontSize: size.h2,
+    color: colors.textDark,
+  },
   hidden: { position: "absolute", opacity: 0, width: 1, height: 1 },
 
   error: {
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.danger,
     marginTop: 14,
   },
 
   wait: {
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.textLight,
     textAlign: "center",
     marginTop: 20,
@@ -377,7 +428,7 @@ const styles = StyleSheet.create({
   resend: { alignItems: "center", paddingVertical: 18 },
   resendText: {
     fontFamily: fonts.semibold,
-    fontSize: 14,
+    fontSize: size.md,
     color: colors.primary,
   },
 });

@@ -1,6 +1,7 @@
-import React, { useCallback } from "react";
-import { View, StatusBar } from "react-native";
+import React, { useEffect } from "react";
+import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import {
@@ -11,14 +12,15 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import AppNavigator from "./src/navigation/AppNavigator";
+import ErrorBoundary from "./src/components/ErrorBoundary";
 import { configureGoogle } from "./src/lib/auth";
 
 configureGoogle();
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -27,28 +29,36 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <AuthProvider>
-        <Gate fontsLoaded={fontsLoaded} />
-      </AuthProvider>
+      {/* Dark icons for the white screens. The dark sign-up screens
+          switch to light icons themselves while they're showing. */}
+      <StatusBar style="dark" />
+      <ErrorBoundary>
+        <AuthProvider>
+          {/* A font that fails to load falls back to the system font
+              rather than leaving the splash up forever */}
+          <Gate fontsReady={fontsLoaded || !!fontError} />
+        </AuthProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
 
 /** Waits for both the fonts and the auth check before showing anything */
-function Gate({ fontsLoaded }: { fontsLoaded: boolean }) {
+function Gate({ fontsReady }: { fontsReady: boolean }) {
   const { isReady } = useAuth();
 
-  const onLayout = useCallback(async () => {
-    if (fontsLoaded && isReady) {
-      await SplashScreen.hideAsync();
+  /* An effect rather than onLayout: layout happens once, often before
+     the auth check has finished, and would leave the splash up */
+  useEffect(() => {
+    if (fontsReady && isReady) {
+      SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, isReady]);
+  }, [fontsReady, isReady]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsReady) return null;
 
   return (
-    <View style={{ flex: 1 }} onLayout={onLayout}>
+    <View style={{ flex: 1 }}>
       <AppNavigator />
     </View>
   );

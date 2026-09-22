@@ -8,8 +8,8 @@ import {
   Easing,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import { CreatorProfile } from "../api/client";
 import { profileStrength, strengthLabel } from "../lib/strength";
 
@@ -44,7 +44,7 @@ export default function StrengthCard({
   return (
     <View style={styles.card}>
       <View style={styles.top}>
-        <View style={[styles.icon, { backgroundColor: `${tone.color}1A` }]}>
+        <View style={[styles.icon, { backgroundColor: tint(tone.color, 0.1) }]}>
           <MaterialCommunityIcons
             name={complete ? "shield-check" : "chart-arc"}
             size={20}
@@ -62,11 +62,11 @@ export default function StrengthCard({
         </View>
 
         <View style={styles.percentBox}>
-          <Text style={[styles.percent, { color: tone.color }]}>
+          <Text style={[styles.percent, { color: tone.textColor }]}>
             {percent}
             <Text style={styles.percentSign}>%</Text>
           </Text>
-          <Text style={[styles.toneLabel, { color: tone.color }]}>
+          <Text style={[styles.toneLabel, { color: tone.textColor }]}>
             {tone.label}
           </Text>
         </View>
@@ -79,7 +79,18 @@ export default function StrengthCard({
       </View>
 
       {/* The next two things worth adding, rather than a wall of them */}
-      {!complete && (
+      {complete ? (
+        <View style={styles.doneRow}>
+          <MaterialCommunityIcons
+            name="check-circle"
+            size={15}
+            color={tone.color}
+          />
+          <Text style={[styles.doneText, { color: tone.textColor }]}>
+            Nothing else needed
+          </Text>
+        </View>
+      ) : (
         <>
           <View style={styles.missingList}>
             {missing.slice(0, 2).map((m) => (
@@ -102,6 +113,7 @@ export default function StrengthCard({
             style={styles.button}
             activeOpacity={0.8}
             onPress={onPress}
+            accessibilityRole="button"
           >
             <Text style={styles.buttonText}>Finish your profile</Text>
             <MaterialCommunityIcons
@@ -111,19 +123,6 @@ export default function StrengthCard({
             />
           </TouchableOpacity>
         </>
-      )}
-
-      {complete && (
-        <View style={styles.doneRow}>
-          <MaterialCommunityIcons
-            name="check-circle"
-            size={15}
-            color={tone.color}
-          />
-          <Text style={[styles.doneText, { color: tone.color }]}>
-            Nothing else needed
-          </Text>
-        </View>
       )}
     </View>
   );
@@ -148,25 +147,25 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.semibold,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.textDark,
   },
   subtitle: {
     fontFamily: fonts.regular,
-    fontSize: 12.5,
+    fontSize: size.sm,
     color: colors.textLight,
     marginTop: 1,
   },
   percentBox: { alignItems: "flex-end" },
   percent: {
     fontFamily: fonts.bold,
-    fontSize: 23,
+    fontSize: size.h2,
     letterSpacing: -0.8,
   },
-  percentSign: { fontSize: 13 },
+  percentSign: { fontSize: size.sm },
   toneLabel: {
     fontFamily: fonts.semibold,
-    fontSize: 10,
+    fontSize: size.xxs,
     marginTop: -2,
   },
 
@@ -183,12 +182,12 @@ const styles = StyleSheet.create({
   missingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   missingText: {
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.textMid,
   },
   moreText: {
     fontFamily: fonts.regular,
-    fontSize: 12,
+    fontSize: size.xs,
     color: colors.textLight,
     marginLeft: 22,
   },
@@ -198,6 +197,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+    minHeight: 44,
     marginTop: 14,
     paddingTop: 13,
     borderTopWidth: 1,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: fonts.semibold,
-    fontSize: 13.5,
+    fontSize: size.md,
     color: colors.primary,
   },
 
@@ -216,5 +216,5 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 14,
   },
-  doneText: { fontFamily: fonts.semibold, fontSize: 13 },
+  doneText: { fontFamily: fonts.semibold, fontSize: size.sm },
 });

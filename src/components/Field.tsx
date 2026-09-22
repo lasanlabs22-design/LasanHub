@@ -7,7 +7,7 @@ import {
   TextInputProps,
 } from "react-native";
 import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { fonts, size } from "../theme/typography";
 
 type Props = TextInputProps & {
   label: string;
@@ -21,6 +21,8 @@ export default function Field({
   prefix,
   hint,
   multiline,
+  onFocus,
+  onBlur,
   ...rest
 }: Props) {
   const [focused, setFocused] = useState(false);
@@ -36,20 +38,28 @@ export default function Field({
           focused && styles.boxFocused,
         ]}
       >
-        {prefix && <Text style={styles.prefix}>{prefix}</Text>}
+        {!!prefix && <Text style={styles.prefix}>{prefix}</Text>}
 
         <TextInput
           style={[styles.input, multiline && styles.inputTall]}
           placeholderTextColor={colors.textLight}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          accessibilityLabel={label.replace(/\s*\*$/, "")}
+          accessibilityHint={hint}
           multiline={multiline}
           textAlignVertical={multiline ? "top" : "center"}
           {...rest}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
         />
       </View>
 
-      {hint && <Text style={styles.hint}>{hint}</Text>}
+      {!!hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
 }
@@ -58,42 +68,44 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: 18 },
   label: {
     fontFamily: fonts.medium,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.textMid,
     marginBottom: 8,
   },
+  /* minHeight so larger system fonts grow the box rather than clip it */
   box: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    height: 54,
+    minHeight: 54,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  boxTall: { height: 110, alignItems: "flex-start", paddingVertical: 15 },
+  boxTall: { minHeight: 110, alignItems: "flex-start", paddingVertical: 15 },
   boxFocused: {
     borderColor: colors.primary,
     backgroundColor: colors.white,
   },
   prefix: {
     fontFamily: fonts.semibold,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.textMid,
   },
   input: {
     flex: 1,
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.textDark,
     padding: 0,
   },
-  inputTall: { height: "100%", lineHeight: 21 },
+  inputTall: { minHeight: 80, lineHeight: 21 },
   hint: {
     fontFamily: fonts.regular,
-    fontSize: 11.5,
+    fontSize: size.xs,
     color: colors.textLight,
     marginTop: 6,
   },

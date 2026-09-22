@@ -3,18 +3,17 @@ import {
   signInWithPhoneNumber,
   signOut,
   getIdToken,
+  onAuthStateChanged,
 } from "@react-native-firebase/auth";
 import {
   GoogleSignin,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-
-/** Same web client ID as Lasan Mart — one Firebase project */
-const WEB_CLIENT_ID =
-  "619769435695-1af73d9j24u4mvjqtn8rqcupm7jlmhoo.apps.googleusercontent.com";
+import { GOOGLE_WEB_CLIENT_ID } from "../config";
+import { devLog } from "./log";
 
 export function configureGoogle() {
-  GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+  GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
 }
 
 export class AuthError extends Error {
@@ -43,7 +42,7 @@ function readable(err: any): AuthError {
     case "auth/network-request-failed":
       return new AuthError("Check your connection and try again.");
     default:
-      console.log("Auth error:", err?.code, err?.message);
+      devLog("Auth error:", err?.code, err?.message);
       return new AuthError("Something went wrong. Please try again.");
   }
 }
@@ -65,12 +64,14 @@ export async function sendOtp(phone: string): Promise<Confirmation> {
 }
 
 export async function verifyOtp(confirmation: Confirmation, code: string) {
-  if (code.replace(/\D/g, "").length !== 6) {
+  const digits = code.replace(/\D/g, "");
+
+  if (digits.length !== 6) {
     throw new AuthError("Enter the 6-digit code.");
   }
 
   try {
-    await confirmation.confirm(code.replace(/\D/g, ""));
+    await confirmation.confirm(digits);
   } catch (err) {
     throw readable(err);
   }
@@ -78,6 +79,7 @@ export async function verifyOtp(confirmation: Confirmation, code: string) {
 
 /* ---------------- Google ---------------- */
 
+/** Only fills in the form — the verified phone number is the real sign-in */
 export async function signInWithGoogle(): Promise<{
   name: string;
   email: string;
@@ -88,6 +90,11 @@ export async function signInWithGoogle(): Promise<{
 
     const result = await GoogleSignin.signIn();
     const user = (result as any)?.data?.user ?? (result as any)?.user;
+
+    // Closing the account picker comes back as an empty result, not an error
+    if ((result as any)?.type === "cancelled") {
+      throw new AuthError("Cancelled", true);
+    }
 
     if (!user?.email) {
       throw new AuthError("Could not read your Google account.");
@@ -101,24 +108,39 @@ export async function signInWithGoogle(): Promise<{
   } catch (err: any) {
     if (err instanceof AuthError) throw err;
 
-    console.log("GOOGLE ERROR:", err?.code, err?.message);
+    devLog("Google sign-in error:", err?.code, err?.message);
 
-    if (err?.code === statusCodes.SIGN_IN_CANCELLED) {
-      throw new AuthError("Cancelled", true);
+    switch (err?.code) {
+      case statusCodes.SIGN_IN_CANCELLED:
+        throw new AuthError("Cancelled", true);
+      case statusCodes.IN_PROGRESS:
+        throw new AuthError("Already signing in — one moment.");
+      case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+        throw new AuthError(
+          "Google sign-in needs Google Play services. You can fill the form in yourself.",
+        );
+      default:
+        throw new AuthError(
+          "Google sign-in didn't work. You can fill the form in yourself.",
+        );
     }
-
-    throw new AuthError(`${err?.code || "no-code"} — ${err?.message || ""}`);
   }
 }
 
 /* ---------------- Shared ---------------- */
 
-/** Attached to every API call, so the backend knows who is asking */
-export async function getAuthToken(): Promise<string | null> {
+/**
+ * Attached to every API call, so the backend knows who is asking.
+ * `forceRefresh` asks Firebase for a brand-new token — used once when
+ * the server says the current one is no good.
+ */
+export async function getAuthToken(
+  forceRefresh = false,
+): Promise<string | null> {
   try {
     const user = getAuth().currentUser;
     if (!user) return null;
-    return await getIdToken(user);
+    return await getIdToken(user, forceRefresh);
   } catch {
     return null;
   }
@@ -133,6 +155,13 @@ export function verifiedPhone(): string | null {
   if (!raw) return null;
   const digits = raw.replace(/\D/g, "");
   return digits.length >= 10 ? digits.slice(-10) : null;
+}
+
+/** Fires now with the current user, then on every sign-in or sign-out */
+export function watchAuth(listener: (hasPhone: boolean) => void) {
+  return onAuthStateChanged(getAuth(), (user) =>
+    listener(!!user?.phoneNumber),
+  );
 }
 
 export async function signOutEverything() {

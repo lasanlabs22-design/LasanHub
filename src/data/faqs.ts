@@ -111,7 +111,7 @@ export const faqs: Faq[] = [
     id: "q15",
     question: "How do I pause or leave?",
     answer:
-      "Message our team and we'll pause your profile so no new work comes your way. Ask us to delete it and everything goes within 30 days.",
+      "Message our team and we'll pause your profile so no new work comes your way. To leave for good, tap \"Delete my account\" at the bottom of the Account tab — everything goes within 30 days.",
   },
   {
     id: "q16",

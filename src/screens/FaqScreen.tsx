@@ -8,20 +8,20 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  Linking,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { faqsFor, Faq } from "../data/faqs";
-import { Role } from "../data/roles";
-
-const SUPPORT_PHONE = "8309074248";
+import { messageSupport } from "../lib/support";
+import ScreenHeader from "../components/ScreenHeader";
+import type { RootNavigation } from "../navigation/types";
 
 // Android needs this switched on for the expand animation
 if (
@@ -31,12 +31,12 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-export default function FaqScreen({ navigation }: any) {
+export default function FaqScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<RootNavigation>();
   const { profile } = useAuth();
 
-  const role: Role = profile?.role || "influencer";
-  const questions = faqsFor(role);
+  const questions = faqsFor(profile?.role || "influencer");
 
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -45,27 +45,12 @@ export default function FaqScreen({ navigation }: any) {
     setOpenId((current) => (current === id ? null : id));
   };
 
-  const whatsapp = () =>
-    Linking.openURL(`https://wa.me/91${SUPPORT_PHONE}`).catch(() =>
-      Linking.openURL(`tel:+91${SUPPORT_PHONE}`),
-    );
-
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.back}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={21}
-            color={colors.textDark}
-          />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Common questions</Text>
-        <View style={{ width: 38 }} />
-      </View>
+      <ScreenHeader
+        title="Common questions"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
         contentContainerStyle={[
@@ -89,10 +74,15 @@ export default function FaqScreen({ navigation }: any) {
         <TouchableOpacity
           style={styles.helpCard}
           activeOpacity={0.9}
-          onPress={whatsapp}
+          onPress={messageSupport}
+          accessibilityRole="button"
         >
           <View style={styles.helpIcon}>
-            <MaterialCommunityIcons name="whatsapp" size={20} color="#0EA97A" />
+            <MaterialCommunityIcons
+              name="whatsapp"
+              size={20}
+              color={colors.successText}
+            />
           </View>
 
           <View style={{ flex: 1 }}>
@@ -127,6 +117,8 @@ function Row({
       style={[styles.card, open && styles.cardOpen]}
       activeOpacity={0.85}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
     >
       <View style={styles.cardTop}>
         <Text style={[styles.question, open && styles.questionOpen]}>
@@ -147,30 +139,6 @@ function Row({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  back: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 17,
-    color: colors.textDark,
-    letterSpacing: -0.3,
-  },
-
   content: { padding: 20 },
   list: { gap: 9 },
 
@@ -189,20 +157,20 @@ const styles = StyleSheet.create({
   question: {
     flex: 1,
     fontFamily: fonts.semibold,
-    fontSize: 14.5,
+    fontSize: size.base,
     lineHeight: 20,
     color: colors.textDark,
   },
   questionOpen: { color: colors.primary },
   answer: {
     fontFamily: fonts.regular,
-    fontSize: 13.5,
+    fontSize: size.md,
     lineHeight: 21,
     color: colors.textDark,
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(95,37,159,0.18)",
+    borderTopColor: tint(colors.primary, 0.18),
   },
 
   helpCard: {
@@ -218,18 +186,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 13,
-    backgroundColor: "#E6F8EE",
+    backgroundColor: colors.successSoft,
     justifyContent: "center",
     alignItems: "center",
   },
   helpTitle: {
     fontFamily: fonts.semibold,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.textDark,
   },
   helpText: {
     fontFamily: fonts.regular,
-    fontSize: 12.5,
+    fontSize: size.sm,
     color: colors.textLight,
     marginTop: 2,
   },

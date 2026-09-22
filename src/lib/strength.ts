@@ -1,5 +1,5 @@
 import { CreatorProfile } from "../api/client";
-import { Role } from "../data/roles";
+import { colors } from "../theme/colors";
 
 type Item = { key: string; label: string; done: boolean };
 
@@ -13,8 +13,6 @@ export function profileStrength(p: CreatorProfile): {
   items: Item[];
   missing: Item[];
 } {
-  const role: Role = p.role || "influencer";
-
   const shared: Item[] = [
     { key: "name", label: "Your name", done: !!p.name?.trim() },
     { key: "photo", label: "Profile photo", done: !!p.photo_url },
@@ -23,7 +21,7 @@ export function profileStrength(p: CreatorProfile): {
     { key: "bio", label: "A short description", done: !!p.bio?.trim() },
   ];
 
-  const byRole: Record<Role, Item[]> = {
+  const byRole: Record<CreatorProfile["role"], Item[]> = {
     influencer: [
       {
         key: "instagram",
@@ -60,7 +58,7 @@ export function profileStrength(p: CreatorProfile): {
     ],
   };
 
-  const items = [...shared, ...byRole[role]];
+  const items = [...shared, ...(byRole[p.role] || byRole.influencer)];
   const done = items.filter((i) => i.done).length;
 
   return {
@@ -70,13 +68,32 @@ export function profileStrength(p: CreatorProfile): {
   };
 }
 
-/** Plain language for how complete it is */
+/**
+ * Plain language for how complete it is. `color` is for the bar and
+ * icon; `textColor` is the darker shade that stays readable as text.
+ */
 export function strengthLabel(percent: number): {
   label: string;
   color: string;
+  textColor: string;
 } {
-  if (percent === 100) return { label: "Complete", color: "#0EA97A" };
-  if (percent >= 75) return { label: "Strong", color: "#0EA97A" };
-  if (percent >= 50) return { label: "Getting there", color: "#E8A400" };
-  return { label: "Needs work", color: "#D93025" };
+  if (percent === 100)
+    return {
+      label: "Complete",
+      color: colors.success,
+      textColor: colors.successText,
+    };
+  if (percent >= 75)
+    return {
+      label: "Strong",
+      color: colors.success,
+      textColor: colors.successText,
+    };
+  if (percent >= 50)
+    return {
+      label: "Getting there",
+      color: colors.warning,
+      textColor: colors.warningText,
+    };
+  return { label: "Needs work", color: colors.danger, textColor: colors.danger };
 }

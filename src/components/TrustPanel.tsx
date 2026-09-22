@@ -1,8 +1,16 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, Easing } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Easing,
+  TouchableOpacity,
+} from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { fonts, size } from "../theme/typography";
+import { openPrivacyPolicy } from "../lib/support";
 
 const POINTS = [
   {
@@ -23,7 +31,7 @@ const POINTS = [
   {
     icon: "delete-outline",
     title: "Leave whenever you like",
-    body: "Message us and we remove your profile and everything attached to it within 30 days.",
+    body: "Delete your account from the Account tab and we remove your profile and everything attached to it within 30 days.",
   },
 ];
 
@@ -49,7 +57,9 @@ export default function TrustPanel() {
     <View style={styles.wrap}>
       <View style={styles.divider} />
 
-      <Text style={styles.heading}>What happens to all this</Text>
+      <Text style={styles.heading} accessibilityRole="header">
+        What happens to all this
+      </Text>
 
       <View style={styles.list}>
         {POINTS.map((p, i) => (
@@ -57,16 +67,22 @@ export default function TrustPanel() {
         ))}
       </View>
 
-      <View style={styles.footer}>
+      <TouchableOpacity
+        style={styles.footer}
+        onPress={openPrivacyPolicy}
+        activeOpacity={0.7}
+        accessibilityRole="link"
+      >
         <MaterialCommunityIcons
           name="information-outline"
           size={14}
           color={colors.textLight}
         />
         <Text style={styles.footerText}>
-          Full detail at lasanmart.com/privacy
+          Full detail at{" "}
+          <Text style={styles.footerLink}>lasanmart.com/privacy</Text>
         </Text>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -125,7 +141,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontFamily: fonts.semibold,
-    fontSize: 11,
+    fontSize: size.xxs,
     letterSpacing: 1,
     color: colors.textLight,
     textTransform: "uppercase",
@@ -144,13 +160,13 @@ const styles = StyleSheet.create({
   },
   pointTitle: {
     fontFamily: fonts.semibold,
-    fontSize: 14.5,
+    fontSize: size.base,
     color: colors.textDark,
     lineHeight: 20,
   },
   pointBody: {
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     lineHeight: 19,
     color: colors.textMid,
     marginTop: 3,
@@ -161,13 +177,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
     marginTop: 26,
-    paddingTop: 18,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   footerText: {
     fontFamily: fonts.regular,
-    fontSize: 12,
+    fontSize: size.xs,
     color: colors.textLight,
+  },
+  footerLink: {
+    fontFamily: fonts.semibold,
+    color: colors.primary,
+    textDecorationLine: "underline",
   },
 });

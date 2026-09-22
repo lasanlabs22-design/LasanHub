@@ -12,15 +12,16 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, statusMeta } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { fonts, size, TIGHT_SCALE } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { roleMeta, Role } from "../data/roles";
 import StrengthCard from "../components/StrengthCard";
-import { fetchUnreadCount } from "../api/client";
+import { fetchUnreadCount, CreatorProfile } from "../api/client";
+import type { RootNavigation } from "../navigation/types";
 
 /** What "you're live" actually means, per role */
 const LIVE_TEXT: Record<Role, string> = {
@@ -68,8 +69,24 @@ const STEPS: Record<Role, { t: string; d: string }[]> = {
   ],
 };
 
-export default function HomeScreen({ navigation }: any) {
+function statusExplanation(profile: CreatorProfile): string {
+  switch (profile.status) {
+    case "pending":
+      return "Our team is checking your details. We'll let you know within a day or two.";
+    case "approved":
+      return LIVE_TEXT[profile.role];
+    case "rejected":
+      return (
+        profile.review_note || "We need a few changes before approving you."
+      );
+    default:
+      return "Your profile is paused. Contact us to go live again.";
+  }
+}
+
+export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<RootNavigation>();
   const { profile, phone, refreshProfile } = useAuth();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -78,35 +95,32 @@ export default function HomeScreen({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
-
-      if (profile) {
-        fetchUnreadCount().then(setUnread);
-      }
-    }, [refreshProfile, profile]),
+      fetchUnreadCount().then(setUnread);
+    }, [refreshProfile]),
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshProfile();
-    setUnread(await fetchUnreadCount());
+    await Promise.all([
+      refreshProfile(),
+      fetchUnreadCount().then(setUnread),
+    ]);
     setRefreshing(false);
   };
 
-  const status = profile ? statusMeta[profile.status] : statusMeta.none;
-  const role: Role = profile?.role || "influencer";
-  const meta = roleMeta(role);
+  // Tabs only mount once a profile exists
+  if (!profile) return null;
 
-  /** Falls back through what we actually have, so a null never shows */
-  const phoneLine = phone
-    ? `+91 ${phone}`
-    : profile?.phone
-      ? `+91 ${profile.phone}`
-      : "";
+  const status = statusMeta[profile.status] || statusMeta.none;
+  const meta = roleMeta(profile.role);
+
+  const shownPhone = phone || profile.phone;
+  const phoneLine = shownPhone ? `+91 ${shownPhone}` : "";
 
   const subtitle =
-    role === "vendor"
-      ? profile?.company_name || phoneLine
-      : profile?.instagram_id
+    profile.role === "vendor"
+      ? profile.company_name || phoneLine
+      : profile.instagram_id
         ? `@${profile.instagram_id}`
         : phoneLine;
 
@@ -123,6 +137,7 @@ export default function HomeScreen({ navigation }: any) {
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
       >
@@ -136,28 +151,29 @@ export default function HomeScreen({ navigation }: any) {
           <View pointerEvents="none" style={styles.cardGlow} />
 
           <View style={styles.statusTop}>
-            {profile?.photo_url ? (
+            {profile.photo_url ? (
               <Image
                 source={{ uri: profile.photo_url }}
                 style={styles.avatar}
+                accessibilityIgnoresInvertColors
               />
             ) : (
               <View style={[styles.avatar, styles.avatarEmpty]}>
                 <Text style={styles.avatarLetter}>
-                  {(profile?.name || "?").charAt(0).toUpperCase()}
+                  {(profile.name || "?").charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
 
             <View style={{ flex: 1 }}>
               <Text style={styles.name} numberOfLines={1}>
-                {profile?.name || "Welcome"}
+                {profile.name}
               </Text>
-              {subtitle ? (
+              {!!subtitle && (
                 <Text style={styles.handle} numberOfLines={1}>
                   {subtitle}
                 </Text>
-              ) : null}
+              )}
             </View>
 
             {/* The bell sits above the role tag, stacked to the right */}
@@ -165,33 +181,43 @@ export default function HomeScreen({ navigation }: any) {
               <TouchableOpacity
                 style={styles.bell}
                 activeOpacity={0.8}
+                hitSlop={8}
                 onPress={() => navigation.navigate("Notifications")}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  unread > 0
+                    ? `Updates, ${unread} unread`
+                    : "Updates, none unread"
+                }
               >
                 <MaterialCommunityIcons
                   name={unread > 0 ? "bell-badge" : "bell-outline"}
-                  size={19}
+                  size={20}
                   color={colors.white}
                 />
 
                 {unread > 0 && (
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
+                    <Text
+                      style={styles.badgeText}
+                      maxFontSizeMultiplier={TIGHT_SCALE}
+                    >
                       {unread > 9 ? "9+" : unread}
                     </Text>
                   </View>
                 )}
               </TouchableOpacity>
 
-              {profile && (
-                <View style={styles.rolePill}>
-                  <MaterialCommunityIcons
-                    name={meta.icon as any}
-                    size={11}
-                    color={colors.white}
-                  />
-                  <Text style={styles.roleText}>{meta.label}</Text>
-                </View>
-              )}
+              <View style={styles.rolePill}>
+                <MaterialCommunityIcons
+                  name={meta.icon as any}
+                  size={12}
+                  color={colors.white}
+                />
+                <Text style={styles.roleText} maxFontSizeMultiplier={TIGHT_SCALE}>
+                  {meta.label}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -203,62 +229,28 @@ export default function HomeScreen({ navigation }: any) {
           </View>
 
           <Text style={styles.statusExplain}>
-            {!profile
-              ? "Create your profile to get listed with local businesses."
-              : profile.status === "pending"
-                ? "Our team is checking your details. We'll let you know within a day or two."
-                : profile.status === "approved"
-                  ? LIVE_TEXT[role]
-                  : profile.status === "rejected"
-                    ? profile.review_note ||
-                      "We need a few changes before approving you."
-                    : "Your profile is paused. Contact us to go live again."}
+            {statusExplanation(profile)}
           </Text>
         </LinearGradient>
 
         {/* How complete their profile is */}
-        {profile && (
-          <StrengthCard
-            profile={profile}
-            onPress={() => navigation.navigate("Profile")}
-          />
-        )}
-
-        {/* Only shown before there's a profile — afterwards, editing
-            lives in the Account tab where the details are */}
-        {!profile && (
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate("Profile")}
-          >
-            <View style={styles.actionIcon}>
-              <MaterialCommunityIcons
-                name="account-plus-outline"
-                size={22}
-                color={colors.primary}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.actionTitle}>Create your profile</Text>
-              <Text style={styles.actionText}>Takes about two minutes</Text>
-            </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={colors.textLight}
-            />
-          </TouchableOpacity>
-        )}
+        <StrengthCard
+          profile={profile}
+          onPress={() => navigation.navigate("Profile")}
+        />
 
         {/* How it works — told in this role's language */}
-        <Text style={styles.sectionLabel}>HOW IT WORKS</Text>
+        <Text style={styles.sectionLabel} accessibilityRole="header">
+          HOW IT WORKS
+        </Text>
 
         <View style={styles.stepsCard}>
-          {STEPS[role].map((step, i) => (
+          {STEPS[profile.role].map((step, i) => (
             <View key={step.t} style={[styles.step, i > 0 && styles.stepGap]}>
               <View style={styles.stepNum}>
-                <Text style={styles.stepNumText}>{i + 1}</Text>
+                <Text style={styles.stepNumText} maxFontSizeMultiplier={TIGHT_SCALE}>
+                  {i + 1}
+                </Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.stepTitle}>{step.t}</Text>
@@ -304,41 +296,41 @@ const styles = StyleSheet.create({
   },
   avatarLetter: {
     fontFamily: fonts.bold,
-    fontSize: 22,
+    fontSize: size.h2,
     color: colors.white,
   },
   name: {
     fontFamily: fonts.bold,
-    fontSize: 21,
+    fontSize: size.h3,
     color: colors.white,
     letterSpacing: -0.5,
   },
   handle: {
     fontFamily: fonts.regular,
-    fontSize: 13.5,
-    color: "rgba(255,255,255,0.62)",
+    fontSize: size.md,
+    color: "rgba(255,255,255,0.8)",
     marginTop: 2,
   },
 
   rightStack: { alignItems: "flex-end", gap: 10 },
 
   bell: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.16)",
     justifyContent: "center",
     alignItems: "center",
   },
   badge: {
     position: "absolute",
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     paddingHorizontal: 4,
-    backgroundColor: "#FFC529",
+    backgroundColor: colors.badge,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
@@ -346,7 +338,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontFamily: fonts.bold,
-    fontSize: 9.5,
+    fontSize: size.xxs,
     color: colors.ink,
   },
 
@@ -361,7 +353,7 @@ const styles = StyleSheet.create({
   },
   roleText: {
     fontFamily: fonts.semibold,
-    fontSize: 10.5,
+    fontSize: size.xxs,
     color: colors.white,
   },
 
@@ -374,52 +366,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.14)",
   },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: {
     fontFamily: fonts.semibold,
-    fontSize: 13.5,
+    fontSize: size.md,
     color: colors.white,
   },
   statusExplain: {
     fontFamily: fonts.regular,
-    fontSize: 13.5,
+    fontSize: size.md,
     lineHeight: 20,
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(255,255,255,0.8)",
     marginTop: 8,
-  },
-
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 15,
-    marginTop: 16,
-  },
-  actionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.primarySoft,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    color: colors.textDark,
-  },
-  actionText: {
-    fontFamily: fonts.regular,
-    fontSize: 12.5,
-    color: colors.textLight,
-    marginTop: 2,
   },
 
   sectionLabel: {
     fontFamily: fonts.semibold,
-    fontSize: 11,
+    fontSize: size.xxs,
     color: colors.textLight,
     letterSpacing: 0.9,
     marginTop: 28,
@@ -443,17 +406,17 @@ const styles = StyleSheet.create({
   },
   stepNumText: {
     fontFamily: fonts.bold,
-    fontSize: 12,
+    fontSize: size.xs,
     color: colors.white,
   },
   stepTitle: {
     fontFamily: fonts.semibold,
-    fontSize: 14.5,
+    fontSize: size.base,
     color: colors.textDark,
   },
   stepText: {
     fontFamily: fonts.regular,
-    fontSize: 12.5,
+    fontSize: size.sm,
     lineHeight: 18,
     color: colors.textMid,
     marginTop: 2,

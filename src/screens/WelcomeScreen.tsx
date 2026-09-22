@@ -8,10 +8,11 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import { Role, roleMeta } from "../data/roles";
 import Button from "../components/Button";
 
@@ -145,6 +146,8 @@ export default function WelcomeScreen({
 
   return (
     <View style={styles.root}>
+      <StatusBar style="light" />
+
       <LinearGradient
         colors={[colors.ink, colors.inkSoft, colors.ink]}
         style={StyleSheet.absoluteFill}
@@ -167,7 +170,7 @@ export default function WelcomeScreen({
             <Animated.View
               style={[
                 styles.badge,
-                { backgroundColor: `${meta.accent}26` },
+                { backgroundColor: tint(meta.accent, 0.15) },
                 { transform: [{ translateY: lift }] },
               ]}
             >
@@ -182,7 +185,9 @@ export default function WelcomeScreen({
               {meta.label.toUpperCase()}
             </Text>
 
-            <Text style={styles.headline}>{pitch.headline}</Text>
+            <Text style={styles.headline} accessibilityRole="header">
+              {pitch.headline}
+            </Text>
             <Text style={styles.pitchBody}>{pitch.body}</Text>
 
             <View style={styles.steps}>
@@ -192,7 +197,7 @@ export default function WelcomeScreen({
                     <View
                       style={[
                         styles.stepIcon,
-                        { backgroundColor: `${meta.accent}1F` },
+                        { backgroundColor: tint(meta.accent, 0.12) },
                       ]}
                     >
                       <MaterialCommunityIcons
@@ -220,7 +225,11 @@ export default function WelcomeScreen({
         <View style={styles.footer}>
           <Button label="Set up my profile" onPress={onContinue} />
 
-          <Text style={styles.backLink} onPress={onBack}>
+          <Text
+            style={styles.backLink}
+            onPress={onBack}
+            accessibilityRole="button"
+          >
             I'm something else
           </Text>
         </View>
@@ -253,22 +262,22 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     fontFamily: fonts.bold,
-    fontSize: 11,
+    fontSize: size.xxs,
     letterSpacing: 2.2,
     marginBottom: 12,
   },
   headline: {
     fontFamily: fonts.bold,
-    fontSize: 29,
-    lineHeight: 37,
-    color: colors.white,
+    fontSize: size.display,
+    lineHeight: 38,
+    color: colors.onDark,
     letterSpacing: -0.9,
   },
   pitchBody: {
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: size.base,
     lineHeight: 22,
-    color: "rgba(255,255,255,0.52)",
+    color: colors.onDarkMid,
     marginTop: 12,
   },
 
@@ -286,28 +295,28 @@ const styles = StyleSheet.create({
     flex: 1,
     width: 1.5,
     minHeight: 22,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: colors.onDarkLine,
     marginVertical: 4,
   },
   stepText: { flex: 1, paddingBottom: 22 },
   stepTitle: {
     fontFamily: fonts.semibold,
-    fontSize: 15.5,
-    color: colors.white,
+    fontSize: size.lg,
+    color: colors.onDark,
   },
   stepBody: {
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     lineHeight: 19,
-    color: "rgba(255,255,255,0.48)",
+    color: colors.onDarkLow,
     marginTop: 3,
   },
 
   footer: { paddingHorizontal: 26, paddingBottom: 20 },
   backLink: {
     fontFamily: fonts.semibold,
-    fontSize: 13.5,
-    color: "rgba(255,255,255,0.4)",
+    fontSize: size.md,
+    color: colors.onDarkLow,
     textAlign: "center",
     paddingVertical: 18,
   },

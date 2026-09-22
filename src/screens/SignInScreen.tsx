@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../context/AuthContext";
-import { fetchMyProfile } from "../api/client";
-import VerifySheet from "../screens/VerifySheet";
+import VerifySheet from "./VerifySheet";
 import { colors } from "../theme/colors";
 
 /**
@@ -19,15 +19,27 @@ export default function SignInScreen({
 }) {
   const { markSignedIn, refreshProfile } = useAuth();
   const [open, setOpen] = useState(true);
+  const [looking, setLooking] = useState(false);
 
-  const handleVerified = async () => {
-    setOpen(false);
-    markSignedIn();
+  /** Once verified: find their profile, or say plainly that we couldn't */
+  const lookUp = async () => {
+    setLooking(true);
+    const result = await refreshProfile();
+    setLooking(false);
 
-    const profile = await fetchMyProfile();
+    if (!result.ok) {
+      Alert.alert(
+        "Couldn't reach our servers",
+        "Your number is verified. Check your connection and try again.",
+        [
+          { text: "Later", style: "cancel", onPress: onCancel },
+          { text: "Try again", onPress: lookUp },
+        ],
+      );
+      return;
+    }
 
-    if (profile) {
-      await refreshProfile();
+    if (result.profile) {
       onDone();
       return;
     }
@@ -39,10 +51,27 @@ export default function SignInScreen({
     );
   };
 
+  const handleVerified = () => {
+    setOpen(false);
+    markSignedIn();
+    lookUp();
+  };
+
   return (
     <View style={styles.root}>
+      <StatusBar style="light" />
+
+      {looking && (
+        <ActivityIndicator
+          size="large"
+          color={colors.primaryOnDark}
+          accessibilityLabel="Finding your profile"
+        />
+      )}
+
       <VerifySheet
         visible={open}
+        verifyLabel="Verify & sign in"
         onClose={() => {
           setOpen(false);
           onCancel();
@@ -54,5 +83,10 @@ export default function SignInScreen({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.ink },
+  root: {
+    flex: 1,
+    backgroundColor: colors.ink,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

@@ -1,14 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Modal,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
   ActivityIndicator,
   RefreshControl,
@@ -20,11 +17,17 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { fetchMyRequests, sendRequest, CreatorRequest } from "../api/client";
+import { timeAgo } from "../lib/time";
 import Button from "../components/Button";
+import Chip from "../components/Chip";
+import BottomSheet from "../components/BottomSheet";
+import EmptyState from "../components/EmptyState";
+import { TabHeader } from "../components/ScreenHeader";
 
+/** Keys must match the API's VALID_REQUEST_TYPES */
 const TYPES = [
   { key: "payment", label: "Payment", icon: "cash-multiple" },
   { key: "profile", label: "Profile", icon: "account-edit-outline" },
@@ -32,25 +35,15 @@ const TYPES = [
   { key: "general", label: "Something else", icon: "help-circle-outline" },
 ];
 
+/** Keys match the statuses the admin console sets */
 const STATUS: Record<string, { label: string; color: string }> = {
   new: { label: "Sent", color: colors.textMid },
-  contacted: { label: "Seen", color: colors.warning },
+  contacted: { label: "Seen", color: colors.warningText },
   in_progress: { label: "Working on it", color: colors.primary },
-  closed: { label: "Resolved", color: colors.success },
+  closed: { label: "Resolved", color: colors.successText },
 };
 
-function timeAgo(iso: string) {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-  });
-}
+const MIN_MESSAGE = 5;
 
 export default function RequestsScreen() {
   const insets = useSafeAreaInsets();
@@ -59,20 +52,22 @@ export default function RequestsScreen() {
   const [items, setItems] = useState<CreatorRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoaded = useRef(false);
 
   /* Compose */
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("general");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const inFlight = useRef(false);
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const load = useCallback(async (pull = false) => {
+    if (pull) setRefreshing(true);
+    else if (!hasLoaded.current) setLoading(true);
 
     try {
-      const data = await fetchMyRequests();
-      setItems(data);
+      setItems(await fetchMyRequests());
+      hasLoaded.current = true;
     } catch {
       // Leave whatever's on screen
     } finally {
@@ -83,14 +78,20 @@ export default function RequestsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (profile) load();
-      else setLoading(false);
-    }, [load, profile]),
+      load();
+    }, [load]),
   );
 
-  const submit = async () => {
-    if (message.trim().length < 5 || sending) return;
+  const closeCompose = () => {
+    setOpen(false);
+    setMessage("");
+    setType("general");
+  };
 
+  const submit = async () => {
+    if (message.trim().length < MIN_MESSAGE || inFlight.current) return;
+
+    inFlight.current = true;
     setSending(true);
 
     try {
@@ -100,55 +101,37 @@ export default function RequestsScreen() {
         message: message.trim(),
       });
 
-      setOpen(false);
-      setMessage("");
-      setType("general");
+      closeCompose();
       load();
     } catch (err: any) {
       Alert.alert("Could not send", err?.message || "Please try again.");
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   };
 
-  /* No profile yet — nothing to raise a request about */
-  if (!profile) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Support</Text>
-        </View>
-
-        <View style={styles.blocked}>
-          <View style={styles.blockedIcon}>
-            <MaterialCommunityIcons
-              name="account-question-outline"
-              size={28}
-              color={colors.textLight}
-            />
-          </View>
-          <Text style={styles.blockedTitle}>Create your profile first</Text>
-          <Text style={styles.blockedText}>
-            Once you've submitted your details you can reach our team here.
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Tabs only mount once a profile exists
+  if (!profile) return null;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Support</Text>
-        <TouchableOpacity
-          style={styles.newButton}
-          activeOpacity={0.85}
-          onPress={() => setOpen(true)}
-        >
-          <MaterialCommunityIcons name="plus" size={17} color={colors.white} />
-          <Text style={styles.newText}>New</Text>
-        </TouchableOpacity>
-      </View>
+      <TabHeader
+        title="Support"
+        right={
+          <TouchableOpacity
+            style={styles.newButton}
+            activeOpacity={0.85}
+            hitSlop={6}
+            onPress={() => setOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="New support request"
+          >
+            <MaterialCommunityIcons name="plus" size={17} color={colors.white} />
+            <Text style={styles.newText}>New</Text>
+          </TouchableOpacity>
+        }
+      />
 
       {loading ? (
         <View style={styles.centre}>
@@ -168,6 +151,7 @@ export default function RequestsScreen() {
               refreshing={refreshing}
               onRefresh={() => load(true)}
               tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
           renderItem={({ item }) => {
@@ -176,7 +160,7 @@ export default function RequestsScreen() {
             return (
               <View style={styles.card}>
                 <View style={styles.cardTop}>
-                  <Text style={styles.cardSubject}>
+                  <Text style={styles.cardSubject} numberOfLines={1}>
                     {item.subject || "Request"}
                   </Text>
                   <View style={styles.statusPill}>
@@ -195,90 +179,56 @@ export default function RequestsScreen() {
             );
           }}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.blockedIcon}>
-                <MaterialCommunityIcons
-                  name="message-text-outline"
-                  size={26}
-                  color={colors.textLight}
-                />
-              </View>
-              <Text style={styles.blockedTitle}>Nothing yet</Text>
-              <Text style={styles.blockedText}>
-                Question about a payment, your profile, or anything else? Send
-                it here and our team picks it up.
-              </Text>
-            </View>
+            <EmptyState
+              icon="message-text-outline"
+              title="Nothing yet"
+              text="Question about a payment, your profile, or anything else? Send it here and our team picks it up."
+            />
           }
         />
       )}
 
       {/* Compose */}
-      <Modal visible={open} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={styles.overlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={styles.sheet}>
-            <View style={styles.grabber} />
-
-            <Text style={styles.sheetTitle}>What's this about?</Text>
-
-            <View style={styles.typeWrap}>
-              {TYPES.map((t) => {
-                const active = type === t.key;
-                return (
-                  <TouchableOpacity
-                    key={t.key}
-                    style={[styles.typeChip, active && styles.typeChipActive]}
-                    activeOpacity={0.85}
-                    onPress={() => setType(t.key)}
-                  >
-                    <MaterialCommunityIcons
-                      name={t.icon as any}
-                      size={15}
-                      color={active ? colors.white : colors.textMid}
-                    />
-                    <Text
-                      style={[styles.typeText, active && styles.typeTextActive]}
-                    >
-                      {t.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <TextInput
-              style={styles.messageBox}
-              value={message}
-              onChangeText={setMessage}
-              placeholder="Tell us what you need…"
-              placeholderTextColor={colors.textLight}
-              multiline
-              maxLength={1000}
-              textAlignVertical="top"
-              editable={!sending}
-            />
-
-            <Button
-              label="Send"
-              onPress={submit}
-              disabled={message.trim().length < 5}
-              busy={sending}
-              style={{ marginTop: 16 }}
-            />
-
-            <TouchableOpacity
-              style={styles.cancel}
-              onPress={() => setOpen(false)}
+      <BottomSheet
+        visible={open}
+        title="What's this about?"
+        onClose={closeCompose}
+        closeDisabled={sending}
+      >
+        <View style={styles.typeWrap}>
+          {TYPES.map((t) => (
+            <Chip
+              key={t.key}
+              label={t.label}
+              icon={t.icon}
+              active={type === t.key}
+              onPress={() => setType(t.key)}
               disabled={sending}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+            />
+          ))}
+        </View>
+
+        <TextInput
+          style={styles.messageBox}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Tell us what you need…"
+          placeholderTextColor={colors.textLight}
+          accessibilityLabel="Your message"
+          multiline
+          maxLength={1000}
+          textAlignVertical="top"
+          editable={!sending}
+        />
+
+        <Button
+          label="Send"
+          onPress={submit}
+          disabled={message.trim().length < MIN_MESSAGE}
+          busy={sending}
+          style={{ marginTop: 16 }}
+        />
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -286,23 +236,11 @@ export default function RequestsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  headerTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 24,
-    color: colors.textDark,
-    letterSpacing: -0.6,
-  },
   newButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
+    minHeight: 40,
     backgroundColor: colors.primary,
     borderRadius: 20,
     paddingHorizontal: 14,
@@ -310,7 +248,7 @@ const styles = StyleSheet.create({
   },
   newText: {
     fontFamily: fonts.semibold,
-    fontSize: 13.5,
+    fontSize: size.md,
     color: colors.white,
   },
 
@@ -326,113 +264,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 10,
     marginBottom: 8,
   },
   cardSubject: {
+    flex: 1,
     fontFamily: fonts.semibold,
-    fontSize: 14.5,
+    fontSize: size.base,
     color: colors.textDark,
   },
   statusPill: { flexDirection: "row", alignItems: "center", gap: 5 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontFamily: fonts.semibold, fontSize: 11.5 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusText: { fontFamily: fonts.semibold, fontSize: size.xs },
   cardMessage: {
     fontFamily: fonts.regular,
-    fontSize: 13.5,
+    fontSize: size.md,
     lineHeight: 20,
     color: colors.textMid,
   },
   cardTime: {
     fontFamily: fonts.regular,
-    fontSize: 11.5,
+    fontSize: size.xs,
     color: colors.textLight,
     marginTop: 10,
   },
 
-  empty: { alignItems: "center", paddingTop: 60, paddingHorizontal: 30 },
-  blocked: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
-  },
-  blockedIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  blockedTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 17,
-    color: colors.textDark,
-    marginBottom: 7,
-  },
-  blockedText: {
-    fontFamily: fonts.regular,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: colors.textMid,
-    textAlign: "center",
-  },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(15,10,31,0.5)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 28,
-  },
-  grabber: {
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
-  sheetTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    color: colors.textDark,
-    letterSpacing: -0.5,
-    marginBottom: 16,
-  },
-
   typeWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-  },
-  typeChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  typeText: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.textMid,
-  },
-  typeTextActive: { color: colors.white, fontFamily: fonts.semibold },
 
   messageBox: {
-    height: 130,
+    minHeight: 130,
+    maxHeight: 220,
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: colors.border,
@@ -440,15 +301,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 18,
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: size.base,
     lineHeight: 21,
     color: colors.textDark,
-  },
-
-  cancel: { alignItems: "center", paddingVertical: 16 },
-  cancelText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.textLight,
   },
 });

@@ -6,19 +6,21 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Dimensions,
+  ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { signInWithGoogle } from "../lib/auth";
 import { ROLES, Role } from "../data/roles";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_W = (SCREEN_WIDTH - 48 - 20) / 3;
+const SIDE_PADDING = 24;
+const CARD_GAP = 10;
 
 export default function AuthScreen({
   onContinue,
@@ -28,6 +30,11 @@ export default function AuthScreen({
   onExisting: () => void;
 }) {
   const { setPrefill } = useAuth();
+  const { width } = useWindowDimensions();
+
+  /* Three across, from the live width. On the narrowest phones the
+     label shrinks to fit (adjustsFontSizeToFit) instead of wrapping. */
+  const cardWidth = (width - SIDE_PADDING * 2 - CARD_GAP * 2) / 3;
 
   const [chosen, setChosen] = useState<Role | null>(null);
   const [googleBusy, setGoogleBusy] = useState(false);
@@ -56,6 +63,8 @@ export default function AuthScreen({
 
   return (
     <View style={styles.root}>
+      <StatusBar style="light" />
+
       <LinearGradient
         colors={[colors.ink, colors.inkSoft, colors.ink]}
         style={StyleSheet.absoluteFill}
@@ -66,12 +75,15 @@ export default function AuthScreen({
       <Glow accent={chosenMeta?.accent || colors.primary} />
 
       <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.body}>
+        <ScrollView
+          contentContainerStyle={styles.body}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.kicker}>ONE LAST THING</Text>
 
-          <Text style={styles.title}>
+          <Text style={styles.title} accessibilityRole="header">
             Which one{"\n"}
-            <Text style={{ color: chosenMeta?.accent || colors.primaryLight }}>
+            <Text style={{ color: chosenMeta?.accent || colors.primaryOnDark }}>
               are you?
             </Text>
           </Text>
@@ -82,6 +94,7 @@ export default function AuthScreen({
                 key={r.key}
                 role={r}
                 index={i}
+                width={cardWidth}
                 active={chosen === r.key}
                 dimmed={!!chosen && chosen !== r.key}
                 onPress={() => setChosen(chosen === r.key ? null : r.key)}
@@ -98,7 +111,11 @@ export default function AuthScreen({
 
           <View style={styles.spacer} />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {!!error && (
+            <Text style={styles.error} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          )}
 
           <TouchableOpacity
             style={[
@@ -110,16 +127,15 @@ export default function AuthScreen({
             activeOpacity={0.9}
             onPress={() => chosen && onContinue(chosen)}
             disabled={!chosen}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !chosen }}
           >
             <Text
-              style={[
-                styles.primaryText,
-                !chosen && { color: "rgba(255,255,255,0.35)" },
-              ]}
+              style={[styles.primaryText, !chosen && styles.primaryTextOff]}
             >
               {chosen ? `Continue as ${chosenMeta?.label}` : "Pick one"}
             </Text>
-            {chosen && (
+            {!!chosen && (
               <MaterialCommunityIcons
                 name="arrow-right"
                 size={18}
@@ -133,11 +149,13 @@ export default function AuthScreen({
             activeOpacity={0.85}
             onPress={handleGoogle}
             disabled={!chosen || googleBusy}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !chosen || googleBusy }}
           >
             <MaterialCommunityIcons
               name="google"
               size={17}
-              color="rgba(255,255,255,0.8)"
+              color={colors.onDarkHigh}
             />
             <Text style={styles.googleText}>
               {googleBusy ? "Signing in…" : "Continue with Google"}
@@ -149,11 +167,13 @@ export default function AuthScreen({
             style={styles.returning}
             activeOpacity={0.7}
             onPress={onExisting}
+            accessibilityRole="button"
+            accessibilityLabel="Already registered? Sign in"
           >
             <MaterialCommunityIcons
               name="account-check-outline"
               size={15}
-              color="rgba(255,255,255,0.5)"
+              color={colors.onDarkLow}
             />
             <Text style={styles.returningText}>
               Already registered?{" "}
@@ -164,7 +184,7 @@ export default function AuthScreen({
           <Text style={styles.legal}>
             We'll verify your number before your profile goes live
           </Text>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -214,12 +234,14 @@ function Glow({ accent }: { accent: string }) {
 function RoleCard({
   role,
   index,
+  width,
   active,
   dimmed,
   onPress,
 }: {
   role: (typeof ROLES)[number];
   index: number;
+  width: number;
   active: boolean;
   dimmed: boolean;
   onPress: () => void;
@@ -268,12 +290,17 @@ function RoleCard({
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={onPress}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: active }}
+        accessibilityLabel={`${role.label}. ${role.tagline}`}
         style={[
           styles.card,
           {
+            width,
+            minHeight: width * 1.24,
             borderColor: active ? role.accent : "rgba(255,255,255,0.1)",
             backgroundColor: active
-              ? `${role.accent}1F`
+              ? tint(role.accent, 0.12)
               : "rgba(255,255,255,0.04)",
           },
           dimmed && styles.cardDimmed,
@@ -282,7 +309,7 @@ function RoleCard({
         <View
           style={[
             styles.cardIcon,
-            { backgroundColor: active ? role.accent : `${role.accent}26` },
+            { backgroundColor: active ? role.accent : tint(role.accent, 0.15) },
           ]}
         >
           <MaterialCommunityIcons
@@ -293,10 +320,9 @@ function RoleCard({
         </View>
 
         <Text
-          style={[
-            styles.cardLabel,
-            active && { color: colors.white, fontFamily: fonts.bold },
-          ]}
+          style={[styles.cardLabel, active && styles.cardLabelActive]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
         >
           {role.label}
         </Text>
@@ -327,33 +353,37 @@ const styles = StyleSheet.create({
     opacity: 0.24,
   },
 
-  body: { flex: 1, paddingHorizontal: 24, paddingTop: 50 },
+  body: {
+    flexGrow: 1,
+    paddingHorizontal: SIDE_PADDING,
+    paddingTop: 40,
+    paddingBottom: 16,
+  },
 
   kicker: {
     fontFamily: fonts.bold,
-    fontSize: 11,
+    fontSize: size.xxs,
     letterSpacing: 2.4,
-    color: "rgba(255,255,255,0.35)",
+    color: colors.onDarkLow,
     marginBottom: 12,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 34,
+    fontSize: size.hero,
     lineHeight: 42,
-    color: colors.white,
+    color: colors.onDark,
     letterSpacing: -1,
-    marginBottom: 40,
+    marginBottom: 32,
   },
 
-  cardRow: { flexDirection: "row", gap: 10 },
+  cardRow: { flexDirection: "row", gap: CARD_GAP, justifyContent: "center" },
   card: {
-    width: CARD_W,
-    height: CARD_W * 1.24,
     borderRadius: 22,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 6,
+    paddingVertical: 14,
   },
   cardDimmed: { opacity: 0.45 },
   cardIcon: {
@@ -366,10 +396,11 @@ const styles = StyleSheet.create({
   },
   cardLabel: {
     fontFamily: fonts.semibold,
-    fontSize: 13.5,
-    color: "rgba(255,255,255,0.7)",
+    fontSize: size.md,
+    color: colors.onDarkMid,
     textAlign: "center",
   },
+  cardLabelActive: { color: colors.onDark, fontFamily: fonts.bold },
   tick: {
     position: "absolute",
     top: 9,
@@ -381,12 +412,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  taglineBox: { height: 40, justifyContent: "center", marginTop: 18 },
+  taglineBox: { minHeight: 40, justifyContent: "center", marginTop: 18 },
   tagline: {
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: size.md,
     lineHeight: 20,
-    color: "rgba(255,255,255,0.5)",
+    color: colors.onDarkMid,
     textAlign: "center",
   },
 
@@ -394,8 +425,8 @@ const styles = StyleSheet.create({
 
   error: {
     fontFamily: fonts.regular,
-    fontSize: 13,
-    color: "#FF8080",
+    fontSize: size.sm,
+    color: colors.dangerOnDark,
     textAlign: "center",
     marginBottom: 12,
   },
@@ -405,27 +436,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    height: 56,
+    minHeight: 56,
+    paddingVertical: 14,
     borderRadius: 17,
   },
   primaryText: {
     fontFamily: fonts.semibold,
-    fontSize: 15.5,
+    fontSize: size.lg,
     color: colors.white,
   },
+  primaryTextOff: { color: colors.onDarkLow },
 
   google: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
-    height: 52,
+    minHeight: 52,
     marginTop: 10,
   },
   googleText: {
     fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
+    fontSize: size.md,
+    color: colors.onDarkHigh,
   },
   off: { opacity: 0.3 },
 
@@ -434,24 +467,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    paddingVertical: 14,
+    minHeight: 48,
+    paddingVertical: 12,
   },
   returningText: {
     fontFamily: fonts.regular,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.5)",
+    fontSize: size.sm,
+    color: colors.onDarkLow,
   },
   returningLink: {
     fontFamily: fonts.semibold,
-    color: colors.primaryLight,
+    color: colors.primaryOnDark,
   },
 
   legal: {
     fontFamily: fonts.regular,
-    fontSize: 11.5,
-    color: "rgba(255,255,255,0.28)",
+    fontSize: size.xs,
+    color: colors.onDarkLow,
     textAlign: "center",
     marginTop: 6,
-    marginBottom: 16,
   },
 });

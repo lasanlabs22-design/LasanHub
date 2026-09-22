@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Linking,
+  ActivityIndicator,
 } from "react-native";
 import {
   SafeAreaView,
@@ -15,26 +15,29 @@ import {
 } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
-import { roleMeta, Role } from "../data/roles";
-
-const SUPPORT_PHONE = "8309074248";
+import { roleMeta } from "../data/roles";
+import { sendRequest } from "../api/client";
+import { messageSupport, openPrivacyPolicy } from "../lib/support";
+import { APP_VERSION } from "../config";
+import { TabHeader } from "../components/ScreenHeader";
+import type { RootNavigation } from "../navigation/types";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootNavigation>();
   const { profile, phone, signOut } = useAuth();
 
-  const role: Role = profile?.role || "influencer";
-  const meta = roleMeta(role);
+  const [deleting, setDeleting] = useState(false);
+  const inFlight = useRef(false);
 
-  const phoneLine = phone
-    ? `+91 ${phone}`
-    : profile?.phone
-      ? `+91 ${profile.phone}`
-      : "—";
+  // Tabs only mount once a profile exists
+  if (!profile) return null;
+
+  const meta = roleMeta(profile.role);
+  const shownPhone = phone || profile.phone;
 
   const confirmSignOut = () => {
     Alert.alert("Sign out?", "You can sign back in with your number anytime.", [
@@ -43,21 +46,70 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const whatsapp = () =>
-    Linking.openURL(`https://wa.me/91${SUPPORT_PHONE}`).catch(() =>
-      Linking.openURL(`tel:+91${SUPPORT_PHONE}`),
+  /**
+   * Sent as a support request, so it lands in the admin console's Hub
+   * queue with the partner's name and number attached. The team removes
+   * the profile from there — the 30 days the trust panel promises.
+   */
+  const requestDeletion = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setDeleting(true);
+
+    try {
+      await sendRequest({
+        type: "profile",
+        subject: "Delete my account",
+        message:
+          "Please delete my Lasan Hub account and everything attached to it.",
+      });
+
+      Alert.alert(
+        "Request sent",
+        "Our team will remove your profile and everything attached to it within 30 days. You can follow it in the Support tab.",
+      );
+    } catch (err: any) {
+      Alert.alert("Could not send", err?.message || "Please try again.");
+    } finally {
+      inFlight.current = false;
+      setDeleting(false);
+    }
+  };
+
+  const confirmDeletion = () => {
+    Alert.alert(
+      "Delete your account?",
+      "We'll remove your profile, your work history and everything else we hold about you. This can't be undone.",
+      [
+        { text: "Keep my account", style: "cancel" },
+        {
+          text: "Request deletion",
+          style: "destructive",
+          onPress: requestDeletion,
+        },
+      ],
     );
+  };
+
+  /* The tags themselves, since a count isn't much use */
+  const tags = [
+    ...(profile.services || []),
+    ...(profile.skills || []),
+    ...(profile.other_service ? [profile.other_service] : []),
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Account</Text>
-
-        {profile && (
+      <TabHeader
+        title="Account"
+        right={
           <TouchableOpacity
             style={styles.editButton}
             activeOpacity={0.85}
+            hitSlop={6}
             onPress={() => navigation.navigate("Profile")}
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
           >
             <MaterialCommunityIcons
               name="pencil-outline"
@@ -66,8 +118,8 @@ export default function SettingsScreen() {
             />
             <Text style={styles.editText}>Edit</Text>
           </TouchableOpacity>
-        )}
-      </View>
+        }
+      />
 
       <ScrollView
         contentContainerStyle={[
@@ -77,258 +129,217 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Who they are */}
-        {profile && (
-          <View style={styles.identity}>
-            {profile.photo_url ? (
-              <Image source={{ uri: profile.photo_url }} style={styles.photo} />
-            ) : (
-              <View style={[styles.photo, { backgroundColor: meta.accent }]}>
-                <Text style={styles.photoLetter}>
-                  {profile.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name} numberOfLines={1}>
-                {profile.name}
+        <View style={styles.identity}>
+          {profile.photo_url ? (
+            <Image
+              source={{ uri: profile.photo_url }}
+              style={styles.photo}
+              accessibilityIgnoresInvertColors
+            />
+          ) : (
+            <View style={[styles.photo, { backgroundColor: meta.accent }]}>
+              <Text style={styles.photoLetter}>
+                {(profile.name || "?").charAt(0).toUpperCase()}
               </Text>
+            </View>
+          )}
 
-              <View
-                style={[
-                  styles.rolePill,
-                  { backgroundColor: `${meta.accent}1A` },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={meta.icon as any}
-                  size={11}
-                  color={meta.accent}
-                />
-                <Text style={[styles.roleText, { color: meta.accent }]}>
-                  {meta.label}
-                </Text>
-              </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name} numberOfLines={1}>
+              {profile.name}
+            </Text>
+
+            <View
+              style={[styles.rolePill, { backgroundColor: tint(meta.accent, 0.1) }]}
+            >
+              <MaterialCommunityIcons
+                name={meta.icon as any}
+                size={12}
+                color={meta.accent}
+              />
+              <Text style={[styles.roleText, { color: colors.textDark }]}>
+                {meta.label}
+              </Text>
             </View>
           </View>
-        )}
+        </View>
 
         {/* Contact */}
-        <Text style={styles.sectionLabel}>CONTACT</Text>
+        <SectionLabel>CONTACT</SectionLabel>
 
         <View style={styles.card}>
-          <Row icon="phone-outline" label="Mobile" value={phoneLine} />
           <Row
-            icon="email-outline"
-            label="Email"
-            value={profile?.email || null}
+            icon="phone-outline"
+            label="Mobile"
+            value={shownPhone ? `+91 ${shownPhone}` : null}
           />
+          <Row icon="email-outline" label="Email" value={profile.email} />
           <Row
             icon="map-marker-outline"
             label="City"
-            value={profile?.city || null}
+            value={profile.city}
+            last
           />
         </View>
 
         {/* What they do — different per role */}
-        {profile && (
-          <>
-            <Text style={styles.sectionLabel}>
-              {role === "vendor" ? "YOUR BUSINESS" : "YOUR WORK"}
-            </Text>
+        <SectionLabel>
+          {profile.role === "vendor" ? "YOUR BUSINESS" : "YOUR WORK"}
+        </SectionLabel>
 
-            <View style={styles.card}>
-              {role === "influencer" && (
-                <>
-                  <Row
-                    icon="instagram"
-                    label="Instagram"
-                    value={
-                      profile.instagram_id ? `@${profile.instagram_id}` : null
-                    }
-                  />
-                  <Row
-                    icon="tag-outline"
-                    label="Posts about"
-                    value={profile.category}
-                  />
-                  <Row
-                    icon="account-group-outline"
-                    label="Followers"
-                    value={profile.followers}
-                  />
-                  <Row
-                    icon="currency-inr"
-                    label="Rate per post"
-                    value={
-                      profile.rate_per_post
-                        ? "₹" + profile.rate_per_post.toLocaleString("en-IN")
-                        : null
-                    }
-                  />
-                </>
-              )}
+        <View style={styles.card}>
+          {profile.role === "influencer" && (
+            <>
+              <Row
+                icon="instagram"
+                label="Instagram"
+                value={profile.instagram_id ? `@${profile.instagram_id}` : null}
+              />
+              <Row
+                icon="tag-outline"
+                label="Posts about"
+                value={profile.category}
+              />
+              <Row
+                icon="account-group-outline"
+                label="Followers"
+                value={profile.followers}
+              />
+              <Row
+                icon="currency-inr"
+                label="Rate per post"
+                value={
+                  profile.rate_per_post
+                    ? "₹" + profile.rate_per_post.toLocaleString("en-IN")
+                    : null
+                }
+                last
+              />
+            </>
+          )}
 
-              {role === "vendor" && (
-                <>
-                  <Row
-                    icon="office-building-outline"
-                    label="Company"
-                    value={profile.company_name}
-                  />
-                  <Row
-                    icon="file-document-outline"
-                    label="GST"
-                    value={profile.gst_number}
-                  />
-                  <Row
-                    icon="clipboard-list-outline"
-                    label="Services"
-                    value={
-                      profile.services?.length
-                        ? `${profile.services.length} listed`
-                        : null
-                    }
-                  />
-                  <Row
-                    icon="currency-inr"
-                    label="Rate card"
-                    value={profile.rate_card ? "Added" : null}
-                  />
-                </>
-              )}
+          {profile.role === "vendor" && (
+            <>
+              <Row
+                icon="office-building-outline"
+                label="Company"
+                value={profile.company_name}
+              />
+              <Row
+                icon="file-document-outline"
+                label="GST"
+                value={profile.gst_number}
+              />
+              <Row
+                icon="clipboard-list-outline"
+                label="Services"
+                value={
+                  profile.services?.length
+                    ? `${profile.services.length} listed`
+                    : null
+                }
+              />
+              <Row
+                icon="currency-inr"
+                label="Rate card"
+                value={profile.rate_card ? "Added" : null}
+                last
+              />
+            </>
+          )}
 
-              {role === "freelancer" && (
-                <>
-                  <Row
-                    icon="palette-outline"
-                    label="Skills"
-                    value={
-                      profile.skills?.length
-                        ? `${profile.skills.length} listed`
-                        : null
-                    }
-                  />
-                  <Row
-                    icon="link-variant"
-                    label="Portfolio"
-                    value={profile.portfolio_url ? "Added" : null}
-                  />
-                  <Row
-                    icon="instagram"
-                    label="Instagram"
-                    value={
-                      profile.instagram_id ? `@${profile.instagram_id}` : null
-                    }
-                  />
-                  <Row
-                    icon="currency-inr"
-                    label="Rate card"
-                    value={profile.rate_card ? "Added" : null}
-                  />
-                </>
-              )}
-            </View>
+          {profile.role === "freelancer" && (
+            <>
+              <Row
+                icon="palette-outline"
+                label="Skills"
+                value={
+                  profile.skills?.length
+                    ? `${profile.skills.length} listed`
+                    : null
+                }
+              />
+              <Row
+                icon="link-variant"
+                label="Portfolio"
+                value={profile.portfolio_url ? "Added" : null}
+              />
+              <Row
+                icon="instagram"
+                label="Instagram"
+                value={profile.instagram_id ? `@${profile.instagram_id}` : null}
+              />
+              <Row
+                icon="currency-inr"
+                label="Rate card"
+                value={profile.rate_card ? "Added" : null}
+                last
+              />
+            </>
+          )}
+        </View>
 
-            {/* The tags themselves, since a count isn't much use */}
-            {(profile.services?.length || profile.skills?.length) && (
-              <View style={styles.tagWrap}>
-                {[...(profile.services || []), ...(profile.skills || [])].map(
-                  (t) => (
-                    <View
-                      key={t}
-                      style={[
-                        styles.tag,
-                        { backgroundColor: `${meta.accent}12` },
-                      ]}
-                    >
-                      <Text style={styles.tagText}>{t}</Text>
-                    </View>
-                  ),
-                )}
-
-                {profile.other_service && (
-                  <View
-                    style={[
-                      styles.tag,
-                      { backgroundColor: `${meta.accent}12` },
-                    ]}
-                  >
-                    <Text style={styles.tagText}>{profile.other_service}</Text>
-                  </View>
-                )}
+        {tags.length > 0 && (
+          <View style={styles.tagWrap}>
+            {tags.map((t) => (
+              <View
+                key={t}
+                style={[styles.tag, { backgroundColor: tint(meta.accent, 0.07) }]}
+              >
+                <Text style={styles.tagText}>{t}</Text>
               </View>
-            )}
-          </>
+            ))}
+          </View>
         )}
 
         {/* Help */}
-        <Text style={styles.sectionLabel}>HELP</Text>
+        <SectionLabel>HELP</SectionLabel>
 
-        <TouchableOpacity
-          style={[styles.actionRow, { marginBottom: 10 }]}
-          activeOpacity={0.85}
-          onPress={() => navigation.navigate("Faq")}
-        >
-          <View
-            style={[styles.actionIcon, { backgroundColor: colors.primarySoft }]}
-          >
-            <MaterialCommunityIcons
-              name="help-circle-outline"
-              size={20}
-              color={colors.primary}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>Common questions</Text>
-            <Text style={styles.actionText}>
-              Approval, work, payments and your account
-            </Text>
-          </View>
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={colors.textLight}
+        <View style={styles.actions}>
+          <ActionRow
+            icon="help-circle-outline"
+            iconColor={colors.primary}
+            iconBg={colors.primarySoft}
+            title="Common questions"
+            text="Approval, work, payments and your account"
+            onPress={() => navigation.navigate("Faq")}
           />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionRow}
-          activeOpacity={0.85}
-          onPress={whatsapp}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: "#E6F8EE" }]}>
-            <MaterialCommunityIcons name="whatsapp" size={19} color="#0EA97A" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>Message our team</Text>
-            <Text style={styles.actionText}>
-              Usually replies within a few hours
-            </Text>
-          </View>
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={colors.textLight}
+          <ActionRow
+            icon="whatsapp"
+            iconColor={colors.successText}
+            iconBg={colors.successSoft}
+            title="Message our team"
+            text="Usually replies within a few hours"
+            onPress={messageSupport}
           />
-        </TouchableOpacity>
+        </View>
 
         {/* About */}
-        <Text style={styles.sectionLabel}>ABOUT</Text>
+        <SectionLabel>ABOUT</SectionLabel>
 
         <View style={styles.card}>
-          <Row icon="information-outline" label="Version" value="1.0.0" />
-          <Row
-            icon="shield-check-outline"
-            label="Privacy"
-            value="lasanmart.com/privacy"
-          />
+          <Row icon="information-outline" label="Version" value={APP_VERSION} />
+          <TouchableOpacity
+            onPress={openPrivacyPolicy}
+            activeOpacity={0.7}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy policy, opens lasanmart.com"
+          >
+            <Row
+              icon="shield-check-outline"
+              label="Privacy policy"
+              value="lasanmart.com/privacy"
+              link
+              last
+            />
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
           style={styles.signOut}
           activeOpacity={0.85}
           onPress={confirmSignOut}
+          accessibilityRole="button"
         >
           <MaterialCommunityIcons
             name="logout"
@@ -338,9 +349,31 @@ export default function SettingsScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.deleteRow}
+          activeOpacity={0.7}
+          onPress={confirmDeletion}
+          disabled={deleting}
+          accessibilityRole="button"
+        >
+          {deleting ? (
+            <ActivityIndicator size="small" color={colors.textLight} />
+          ) : (
+            <Text style={styles.deleteText}>Delete my account</Text>
+          )}
+        </TouchableOpacity>
+
         <Text style={styles.footer}>Lasan Hub · Lasan Media Works</Text>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <Text style={styles.sectionLabel} accessibilityRole="header">
+      {children}
+    </Text>
   );
 }
 
@@ -348,13 +381,17 @@ function Row({
   icon,
   label,
   value,
+  link,
+  last,
 }: {
   icon: string;
   label: string;
   value: string | null;
+  link?: boolean;
+  last?: boolean;
 }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, last && styles.rowLast]}>
       <MaterialCommunityIcons
         name={icon as any}
         size={18}
@@ -362,43 +399,80 @@ function Row({
       />
       <Text style={styles.rowLabel}>{label}</Text>
       <Text
-        style={[styles.rowValue, !value && styles.rowEmpty]}
+        style={[
+          styles.rowValue,
+          !value && styles.rowEmpty,
+          link && styles.rowLink,
+        ]}
         numberOfLines={1}
       >
         {value || "Not set"}
       </Text>
+      {link && (
+        <MaterialCommunityIcons
+          name="open-in-new"
+          size={14}
+          color={colors.primary}
+        />
+      )}
     </View>
+  );
+}
+
+function ActionRow({
+  icon,
+  iconColor,
+  iconBg,
+  title,
+  text,
+  onPress,
+}: {
+  icon: string;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  text: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.actionRow}
+      activeOpacity={0.85}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
+      <View style={[styles.actionIcon, { backgroundColor: iconBg }]}>
+        <MaterialCommunityIcons name={icon as any} size={20} color={iconColor} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.actionTitle}>{title}</Text>
+        <Text style={styles.actionText}>{text}</Text>
+      </View>
+      <MaterialCommunityIcons
+        name="chevron-right"
+        size={20}
+        color={colors.textLight}
+      />
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  headerTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 24,
-    color: colors.textDark,
-    letterSpacing: -0.6,
-  },
   editButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
+    minHeight: 40,
     backgroundColor: colors.primarySoft,
     borderRadius: 20,
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
   editText: {
     fontFamily: fonts.semibold,
-    fontSize: 13,
+    fontSize: size.sm,
     color: colors.primary,
   },
 
@@ -419,12 +493,12 @@ const styles = StyleSheet.create({
   },
   photoLetter: {
     fontFamily: fonts.bold,
-    fontSize: 24,
+    fontSize: size.h1,
     color: colors.white,
   },
   name: {
     fontFamily: fonts.bold,
-    fontSize: 20,
+    fontSize: size.h3,
     color: colors.textDark,
     letterSpacing: -0.5,
   },
@@ -438,11 +512,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginTop: 5,
   },
-  roleText: { fontFamily: fonts.semibold, fontSize: 11 },
+  roleText: { fontFamily: fonts.semibold, fontSize: size.xxs },
 
   sectionLabel: {
     fontFamily: fonts.semibold,
-    fontSize: 11,
+    fontSize: size.xxs,
     color: colors.textLight,
     letterSpacing: 0.9,
     marginTop: 26,
@@ -458,24 +532,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 15,
+    minHeight: 50,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  rowLast: { borderBottomWidth: 0 },
   rowLabel: {
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: size.md,
     color: colors.textMid,
     flex: 1,
   },
   rowValue: {
     fontFamily: fonts.semibold,
-    fontSize: 13.5,
+    fontSize: size.md,
     color: colors.textDark,
     maxWidth: "52%",
     textAlign: "right",
   },
   rowEmpty: { fontFamily: fonts.regular, color: colors.textLight },
+  rowLink: { color: colors.primary },
 
   tagWrap: {
     flexDirection: "row",
@@ -490,10 +567,11 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontFamily: fonts.medium,
-    fontSize: 12.5,
+    fontSize: size.sm,
     color: colors.textDark,
   },
 
+  actions: { gap: 10 },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -511,12 +589,12 @@ const styles = StyleSheet.create({
   },
   actionTitle: {
     fontFamily: fonts.semibold,
-    fontSize: 14.5,
+    fontSize: size.base,
     color: colors.textDark,
   },
   actionText: {
     fontFamily: fonts.regular,
-    fontSize: 12.5,
+    fontSize: size.sm,
     color: colors.textLight,
     marginTop: 2,
   },
@@ -527,17 +605,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     marginTop: 30,
-    paddingVertical: 16,
+    minHeight: 48,
+    paddingVertical: 14,
   },
   signOutText: {
     fontFamily: fonts.semibold,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.danger,
+  },
+
+  deleteRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    paddingVertical: 10,
+  },
+  deleteText: {
+    fontFamily: fonts.medium,
+    fontSize: size.sm,
+    color: colors.textLight,
+    textDecorationLine: "underline",
   },
 
   footer: {
     fontFamily: fonts.regular,
-    fontSize: 12,
+    fontSize: size.xs,
     color: colors.textLight,
     textAlign: "center",
     marginTop: 10,

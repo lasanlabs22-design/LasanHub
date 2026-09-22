@@ -6,9 +6,10 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { Role } from "../data/roles";
+import type { RootStackParamList, TabParamList } from "./types";
 import OnboardingScreen from "../screens/OnboardingScreen";
 import AuthScreen from "../screens/AuthScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
@@ -20,16 +21,17 @@ import SignInScreen from "../screens/SignInScreen";
 import WorkScreen from "../screens/WorkScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import FaqScreen from "../screens/FaqScreen";
+import OfflineScreen from "../screens/OfflineScreen";
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<TabParamList>();
 
 /** Filled when active, outline when not */
-const ICONS: Record<string, { on: string; off: string }> = {
+const ICONS: Record<keyof TabParamList, { on: string; off: string }> = {
   Home: { on: "view-dashboard", off: "view-dashboard-outline" },
   Support: { on: "message-text", off: "message-text-outline" },
-  Account: { on: "account-circle", off: "account-circle-outline" },
   Work: { on: "briefcase", off: "briefcase-outline" },
+  Account: { on: "account-circle", off: "account-circle-outline" },
 };
 
 function Tabs() {
@@ -41,6 +43,9 @@ function Tabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textLight,
+        /* The bar is a fixed height, so its labels don't scale with the
+           system font — they'd clip. Everything above it does scale. */
+        tabBarAllowFontScaling: false,
         tabBarStyle: {
           height: 62 + insets.bottom,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
@@ -51,10 +56,10 @@ function Tabs() {
         },
         tabBarLabelStyle: {
           fontFamily: fonts.medium,
-          fontSize: 10.5,
+          fontSize: size.xxs,
         },
         tabBarIcon: ({ color, focused }) => {
-          const icon = ICONS[route.name] || ICONS.Home;
+          const icon = ICONS[route.name];
           return (
             <MaterialCommunityIcons
               name={(focused ? icon.on : icon.off) as any}
@@ -74,7 +79,7 @@ function Tabs() {
 }
 
 export default function AppNavigator() {
-  const { isReady, isSignedIn, profile } = useAuth();
+  const { isReady, isSignedIn, profile, profileState } = useAuth();
 
   /**
    * Three steps before the form, none of them persisted — anyone
@@ -105,10 +110,17 @@ export default function AppNavigator() {
     return <View style={styles.blank} />;
   }
 
+  /* Signed in, but the server didn't answer — we don't know yet whether
+     they have a profile, so don't guess and send them to sign-up */
+  const couldNotLoad =
+    isSignedIn && !profile && profileState === "failed" && !signingIn;
+
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {signingIn && !profile ? (
+        {couldNotLoad ? (
+          <Stack.Screen name="Offline" component={OfflineScreen} />
+        ) : signingIn && !profile ? (
           /* Returning user, verifying their existing number —
              takes over ahead of the onboarding/role/welcome steps */
           <Stack.Screen name="SignIn">
@@ -149,9 +161,8 @@ export default function AppNavigator() {
           /* The form, shaped by their role. The number gets verified
              when they submit. */
           <Stack.Screen name="CreateProfile">
-            {(props) => (
+            {() => (
               <ProfileScreen
-                {...props}
                 role={chosenRole || "influencer"}
                 onBack={() => setSeenWelcome(false)}
               />

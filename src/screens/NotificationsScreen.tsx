@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -12,55 +12,44 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
-import { fonts } from "../theme/typography";
+import { colors, tint } from "../theme/colors";
+import { fonts, size } from "../theme/typography";
 import {
   fetchNotifications,
   markNotificationsRead,
   PartnerNotification,
 } from "../api/client";
+import { timeAgo } from "../lib/time";
+import ScreenHeader from "../components/ScreenHeader";
+import EmptyState from "../components/EmptyState";
+import type { RootNavigation } from "../navigation/types";
 
-const META: Record<string, { icon: string; colour: string }> = {
-  work: { icon: "briefcase-outline", colour: "#5F259F" },
-  profile: { icon: "shield-check-outline", colour: "#0EA97A" },
+const META: Record<PartnerNotification["type"], { icon: string; colour: string }> = {
+  work: { icon: "briefcase-outline", colour: colors.primary },
+  profile: { icon: "shield-check-outline", colour: colors.successText },
 };
 
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-  });
-}
-
-export default function NotificationsScreen({ navigation }: any) {
+export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<RootNavigation>();
 
   const [items, setItems] = useState<PartnerNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoaded = useRef(false);
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const load = useCallback(async (pull = false) => {
+    if (pull) setRefreshing(true);
+    else if (!hasLoaded.current) setLoading(true);
 
     try {
       const data = await fetchNotifications();
       setItems(data.notifications);
       setUnread(data.unread);
+      hasLoaded.current = true;
     } catch {
       // Leave whatever's on screen
     } finally {
@@ -75,27 +64,22 @@ export default function NotificationsScreen({ navigation }: any) {
     }, [load]),
   );
 
-  const markAll = async () => {
+  const markAll = () => {
     // Update the screen first, then tell the server
-    setItems((prev) =>
-      prev.map((n) => ({
-        ...n,
-        read_at: n.read_at || new Date().toISOString(),
-      })),
-    );
+    const now = new Date().toISOString();
+    setItems((prev) => prev.map((n) => ({ ...n, read_at: n.read_at || now })));
     setUnread(0);
-    await markNotificationsRead();
+    markNotificationsRead();
   };
 
-  const open = async (item: PartnerNotification) => {
+  const open = (item: PartnerNotification) => {
     if (!item.read_at) {
+      const now = new Date().toISOString();
       setItems((prev) =>
-        prev.map((n) =>
-          n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n,
-        ),
+        prev.map((n) => (n.id === item.id ? { ...n, read_at: now } : n)),
       );
       setUnread((u) => Math.max(0, u - 1));
-      await markNotificationsRead(item.id);
+      markNotificationsRead(item.id);
     }
 
     // Anything about a job takes them to the Work tab
@@ -106,31 +90,23 @@ export default function NotificationsScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.back}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={21}
-            color={colors.textDark}
-          />
-        </TouchableOpacity>
-
-        <View style={styles.headerMiddle}>
-          <Text style={styles.headerTitle}>Updates</Text>
-          {unread > 0 && <Text style={styles.headerSub}>{unread} unread</Text>}
-        </View>
-
-        {unread > 0 ? (
-          <TouchableOpacity onPress={markAll} hitSlop={10}>
-            <Text style={styles.markAll}>Mark all</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 38 }} />
-        )}
-      </View>
+      <ScreenHeader
+        title="Updates"
+        subtitle={unread > 0 ? `${unread} unread` : undefined}
+        onBack={() => navigation.goBack()}
+        right={
+          unread > 0 ? (
+            <TouchableOpacity
+              onPress={markAll}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Mark all as read"
+            >
+              <Text style={styles.markAll}>Mark all</Text>
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
       {loading ? (
         <View style={styles.centre}>
@@ -150,6 +126,7 @@ export default function NotificationsScreen({ navigation }: any) {
               refreshing={refreshing}
               onRefresh={() => load(true)}
               tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
           renderItem={({ item }) => {
@@ -161,9 +138,11 @@ export default function NotificationsScreen({ navigation }: any) {
                 style={[styles.card, isUnread && styles.cardUnread]}
                 activeOpacity={0.85}
                 onPress={() => open(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`${isUnread ? "Unread. " : ""}${item.title}. ${item.body}`}
               >
                 <View
-                  style={[styles.icon, { backgroundColor: `${meta.colour}14` }]}
+                  style={[styles.icon, { backgroundColor: tint(meta.colour, 0.08) }]}
                 >
                   <MaterialCommunityIcons
                     name={meta.icon as any}
@@ -187,20 +166,11 @@ export default function NotificationsScreen({ navigation }: any) {
             );
           }}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <MaterialCommunityIcons
-                  name="bell-outline"
-                  size={28}
-                  color={colors.textLight}
-                />
-              </View>
-              <Text style={styles.emptyTitle}>Nothing yet</Text>
-              <Text style={styles.emptyText}>
-                We'll let you know here when there's work for you, or news about
-                your profile.
-              </Text>
-            </View>
+            <EmptyState
+              icon="bell-outline"
+              title="Nothing yet"
+              text="We'll let you know here when there's work for you, or news about your profile."
+            />
           }
         />
       )}
@@ -211,39 +181,9 @@ export default function NotificationsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  back: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerMiddle: { alignItems: "center" },
-  headerTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 17,
-    color: colors.textDark,
-    letterSpacing: -0.3,
-  },
-  headerSub: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    color: colors.primary,
-    marginTop: 1,
-  },
   markAll: {
     fontFamily: fonts.semibold,
-    fontSize: 12.5,
+    fontSize: size.sm,
     color: colors.primary,
   },
 
@@ -261,7 +201,7 @@ const styles = StyleSheet.create({
   },
   cardUnread: {
     backgroundColor: colors.white,
-    borderColor: "rgba(95,37,159,0.25)",
+    borderColor: tint(colors.primary, 0.25),
   },
   icon: {
     width: 40,
@@ -274,7 +214,7 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     fontFamily: fonts.semibold,
-    fontSize: 15,
+    fontSize: size.base,
     color: colors.textDark,
   },
   dot: {
@@ -285,39 +225,15 @@ const styles = StyleSheet.create({
   },
   body: {
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: size.sm,
     lineHeight: 19,
     color: colors.textMid,
     marginTop: 3,
   },
   time: {
     fontFamily: fonts.regular,
-    fontSize: 11.5,
+    fontSize: size.xs,
     color: colors.textLight,
     marginTop: 8,
-  },
-
-  empty: { alignItems: "center", paddingTop: 70, paddingHorizontal: 40 },
-  emptyIcon: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 17,
-    color: colors.textDark,
-    marginBottom: 7,
-  },
-  emptyText: {
-    fontFamily: fonts.regular,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: colors.textMid,
-    textAlign: "center",
   },
 });
