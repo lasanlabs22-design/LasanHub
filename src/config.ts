@@ -10,7 +10,7 @@ import Constants from "expo-constants";
  */
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
-  "https://lasanmartapihono-production-a721.up.railway.app";
+  "https://lasanmartapihono-production.up.railway.app";
 
 /** Shared with Lasan Mart — the same Firebase project and Cloudinary account */
 export const GOOGLE_WEB_CLIENT_ID =
