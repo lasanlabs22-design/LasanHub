@@ -19,7 +19,7 @@
         "backgroundColor": "#0F0A1F",
         "foregroundImage": "./assets/icon.png"
       },
-      "permissions": [],
+      "permissions": ["POST_NOTIFICATIONS"],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -36,6 +36,7 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
+      "expo-notifications",
       [
         "expo-build-properties",
         {

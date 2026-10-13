@@ -323,3 +323,30 @@ export async function markNotificationsRead(id?: string): Promise<void> {
     // Not worth surfacing
   }
 }
+
+/**
+ * Ties this phone to the signed-in partner so work offers and review
+ * decisions arrive as notifications. True only when it was saved —
+ * before a profile exists there is nothing to attach it to.
+ */
+export async function registerPushToken(token: string): Promise<boolean> {
+  try {
+    const data = await request("/influencers/push-token", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    return data?.success === true;
+  } catch {
+    // The in-app list still works without it
+    return false;
+  }
+}
+
+/** Called on sign-out, while the token still says who they are */
+export async function unregisterPushToken(): Promise<void> {
+  try {
+    await request("/influencers/push-token", { method: "DELETE" });
+  } catch {
+    // Not worth blocking a sign-out over
+  }
+}

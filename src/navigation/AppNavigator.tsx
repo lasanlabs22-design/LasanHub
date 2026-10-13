@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +25,7 @@ import WorkScreen from "../screens/WorkScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import FaqScreen from "../screens/FaqScreen";
 import OfflineScreen from "../screens/OfflineScreen";
+import { usePartnerPush } from "../hooks/usePartnerPush";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -86,8 +90,13 @@ function Tabs() {
   );
 }
 
+/** Lets a tapped notification open a screen from outside any screen */
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
 export default function AppNavigator() {
   const { isReady, isSignedIn, profile, profileState } = useAuth();
+
+  usePartnerPush(navigationRef);
 
   /**
    * Three steps before the form, none of them persisted — anyone
@@ -124,7 +133,7 @@ export default function AppNavigator() {
     isSignedIn && !profile && profileState === "failed" && !signingIn;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {couldNotLoad ? (
           <Stack.Screen name="Offline" component={OfflineScreen} />

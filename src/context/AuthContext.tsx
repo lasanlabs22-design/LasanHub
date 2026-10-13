@@ -17,6 +17,7 @@ import {
 import {
   fetchMyProfile,
   setUnauthorizedHandler,
+  unregisterPushToken,
   CreatorProfile,
 } from "../api/client";
 
@@ -140,9 +141,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [refreshProfile]);
 
+  /* Dropping the push token is itself an API call. If the server has
+     revoked the session it answers 401, which signs out again — this
+     stops that from looping. */
+  const signingOut = useRef(false);
+
   const signOut = useCallback(async () => {
-    await signOutEverything();
-    clearSession();
+    if (signingOut.current) return;
+    signingOut.current = true;
+
+    try {
+      // While still signed in, so the backend knows whose token to drop
+      await unregisterPushToken();
+      await signOutEverything();
+      clearSession();
+    } finally {
+      signingOut.current = false;
+    }
   }, [clearSession]);
 
   /* The server refused a fresh token: this session is over */
