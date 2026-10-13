@@ -281,8 +281,10 @@ export default function ProfileScreen({
                 />
               </View>
               <Text style={styles.roleBannerText}>
-                Signing up as a {meta.label.toLowerCase()}. Our team reviews
-                every profile before it goes live.
+                {/* "an influencer", "a vendor", "a freelancer" */}
+                Signing up as {/^[aeiou]/i.test(meta.label) ? "an" : "a"}{" "}
+                {meta.label.toLowerCase()}. Our team reviews every profile
+                before it goes live.
               </Text>
             </View>
           )}
