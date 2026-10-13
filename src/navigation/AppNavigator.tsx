@@ -34,8 +34,16 @@ const ICONS: Record<keyof TabParamList, { on: string; off: string }> = {
   Account: { on: "account-circle", off: "account-circle-outline" },
 };
 
+/** Space kept clear at the bottom even when the system reports none */
+const MIN_BOTTOM_GAP = 14;
+
 function Tabs() {
   const insets = useSafeAreaInsets();
+
+  // Gesture navigation with the bar hidden (common on OnePlus, Xiaomi
+  // and others) reports a zero inset while the swipe-up zone still
+  // covers the bottom edge — so never let the labels sit right on it
+  const bottomGap = Math.max(insets.bottom, MIN_BOTTOM_GAP);
 
   return (
     <Tab.Navigator
@@ -47,8 +55,8 @@ function Tabs() {
            system font — they'd clip. Everything above it does scale. */
         tabBarAllowFontScaling: false,
         tabBarStyle: {
-          height: 62 + insets.bottom,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          height: 62 + bottomGap,
+          paddingBottom: bottomGap,
           paddingTop: 8,
           backgroundColor: colors.white,
           borderTopWidth: 1,
