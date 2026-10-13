@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0F0A1F"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.lasanhub.app"
@@ -55,6 +50,15 @@
           "photosPermission": "Lasan Hub needs access to your photos so you can set your profile picture.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0F0A1F"
         }
       ]
     ],
