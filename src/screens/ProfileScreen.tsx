@@ -146,6 +146,12 @@ export default function ProfileScreen({
 
     // Show it straight away, then swap in the uploaded URL
     setPhoto(localUri);
+
+    // Uploads are signed for a verified number only. Before that, the
+    // photo stays on the phone and goes up during Save, right after
+    // they verify.
+    if (!hasVerifiedPhone()) return;
+
     setUploading(true);
 
     try {
@@ -166,11 +172,19 @@ export default function ProfileScreen({
     setBusy(true);
 
     try {
+      // Picked before they verified — the number is verified now, so
+      // it can be uploaded. A failure keeps the form; nothing is lost.
+      let photoUrl = photo;
+      if (photoUrl && !photoUrl.startsWith("http")) {
+        photoUrl = await uploadPhoto(photoUrl);
+        setPhoto(photoUrl);
+      }
+
       await saveProfile({
         role,
         name: name.trim(),
         email: email.trim() || undefined,
-        photoUrl: photo || undefined,
+        photoUrl: photoUrl || undefined,
         city: city.trim() || undefined,
         bio: bio.trim() || undefined,
 
@@ -267,8 +281,10 @@ export default function ProfileScreen({
                 />
               </View>
               <Text style={styles.roleBannerText}>
-                Signing up as a {meta.label.toLowerCase()}. Our team reviews
-                every profile before it goes live.
+                {/* "an influencer", "a vendor", "a freelancer" */}
+                Signing up as {/^[aeiou]/i.test(meta.label) ? "an" : "a"}{" "}
+                {meta.label.toLowerCase()}. Our team reviews every profile
+                before it goes live.
               </Text>
             </View>
           )}

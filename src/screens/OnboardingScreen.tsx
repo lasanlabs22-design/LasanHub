@@ -48,7 +48,7 @@ const SLIDES: Slide[] = [
     key: "influencer",
     eyebrow: "FOR CREATORS",
     title: "Brands find you,\nnot the reverse",
-    body: "Set your rate once. Businesses browse creators by budget and category, and our team brings you the brief.",
+    body: "Set your rate once. Businesses browse creators by category and city, and our team brings you the brief.",
     icon: "account-star-outline",
     accent: roleMeta("influencer").accent,
     points: [

@@ -12,12 +12,13 @@ export const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   "https://lasanmartapihono-production.up.railway.app";
 
-/** Shared with Lasan Mart — the same Firebase project and Cloudinary account */
+/**
+ * Shared with Lasan Mart — the same Firebase project. Photos go to the
+ * same Cloudinary account, but through uploads the backend signs, so
+ * nothing about Cloudinary needs to live in the app.
+ */
 export const GOOGLE_WEB_CLIENT_ID =
   "619769435695-1af73d9j24u4mvjqtn8rqcupm7jlmhoo.apps.googleusercontent.com";
-
-export const CLOUDINARY_CLOUD = "tpd2optn";
-export const CLOUDINARY_PRESET = "lasan_reels";
 
 /** Our team's WhatsApp / phone number, without +91 */
 export const SUPPORT_PHONE = "8309074248";

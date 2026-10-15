@@ -37,7 +37,7 @@ const PITCH: Record<
       {
         icon: "eye-outline",
         title: "Businesses browse you",
-        text: "They filter by budget and what you post about",
+        text: "They filter by what you post about and your city",
       },
       {
         icon: "phone-in-talk-outline",

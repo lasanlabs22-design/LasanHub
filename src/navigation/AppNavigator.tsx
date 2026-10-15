@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +25,7 @@ import WorkScreen from "../screens/WorkScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import FaqScreen from "../screens/FaqScreen";
 import OfflineScreen from "../screens/OfflineScreen";
+import { usePartnerPush } from "../hooks/usePartnerPush";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -34,8 +38,16 @@ const ICONS: Record<keyof TabParamList, { on: string; off: string }> = {
   Account: { on: "account-circle", off: "account-circle-outline" },
 };
 
+/** Space kept clear at the bottom even when the system reports none */
+const MIN_BOTTOM_GAP = 14;
+
 function Tabs() {
   const insets = useSafeAreaInsets();
+
+  // Gesture navigation with the bar hidden (common on OnePlus, Xiaomi
+  // and others) reports a zero inset while the swipe-up zone still
+  // covers the bottom edge — so never let the labels sit right on it
+  const bottomGap = Math.max(insets.bottom, MIN_BOTTOM_GAP);
 
   return (
     <Tab.Navigator
@@ -47,8 +59,8 @@ function Tabs() {
            system font — they'd clip. Everything above it does scale. */
         tabBarAllowFontScaling: false,
         tabBarStyle: {
-          height: 62 + insets.bottom,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          height: 62 + bottomGap,
+          paddingBottom: bottomGap,
           paddingTop: 8,
           backgroundColor: colors.white,
           borderTopWidth: 1,
@@ -78,8 +90,13 @@ function Tabs() {
   );
 }
 
+/** Lets a tapped notification open a screen from outside any screen */
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
 export default function AppNavigator() {
   const { isReady, isSignedIn, profile, profileState } = useAuth();
+
+  usePartnerPush(navigationRef);
 
   /**
    * Three steps before the form, none of them persisted — anyone
@@ -116,7 +133,7 @@ export default function AppNavigator() {
     isSignedIn && !profile && profileState === "failed" && !signingIn;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {couldNotLoad ? (
           <Stack.Screen name="Offline" component={OfflineScreen} />

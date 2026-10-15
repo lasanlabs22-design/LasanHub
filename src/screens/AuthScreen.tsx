@@ -13,14 +13,31 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors, tint } from "../theme/colors";
+import { colors } from "../theme/colors";
 import { fonts, size } from "../theme/typography";
 import { useAuth } from "../context/AuthContext";
 import { signInWithGoogle } from "../lib/auth";
 import { ROLES, Role } from "../data/roles";
+import Shimmer from "../components/Shimmer";
 
 const SIDE_PADDING = 24;
-const CARD_GAP = 10;
+
+/* Ring around the chosen card: always reserved, so choosing
+   doesn't shift the layout */
+const RING = 2;
+const RING_GAP = 3;
+
+/**
+ * Built like Lasan Mart's home banners (Bespoke, Business Ideas,
+ * Influencer Marketing) — gradient card, orb, sheen, shimmer — each
+ * in its role's colour. Deep enough at the start that white text
+ * holds up over the light end.
+ */
+const CARD_LOOK: Record<Role, { gradient: [string, string]; tag: string }> = {
+  influencer: { gradient: ["#B82E7C", "#561A86"], tag: "BRAND DEALS" },
+  vendor: { gradient: ["#0B8F68", "#04503A"], tag: "CAMPAIGN ORDERS" },
+  freelancer: { gradient: ["#2F6FE6", "#1B3A8F"], tag: "PAID GIGS" },
+};
 
 export default function AuthScreen({
   onContinue,
@@ -32,9 +49,8 @@ export default function AuthScreen({
   const { setPrefill } = useAuth();
   const { width } = useWindowDimensions();
 
-  /* Three across, from the live width. On the narrowest phones the
-     label shrinks to fit (adjustsFontSizeToFit) instead of wrapping. */
-  const cardWidth = (width - SIDE_PADDING * 2 - CARD_GAP * 2) / 3;
+  /* How far the shimmer travels across a card */
+  const cardWidth = width - SIDE_PADDING * 2;
 
   const [chosen, setChosen] = useState<Role | null>(null);
   const [googleBusy, setGoogleBusy] = useState(false);
@@ -63,16 +79,7 @@ export default function AuthScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
-
-      <LinearGradient
-        colors={[colors.ink, colors.inkSoft, colors.ink]}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* The glow takes the chosen role's colour — the whole screen
-          responds to the choice, not just the card */}
-      <Glow accent={chosenMeta?.accent || colors.primary} />
+      <StatusBar style="dark" />
 
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView
@@ -83,12 +90,12 @@ export default function AuthScreen({
 
           <Text style={styles.title} accessibilityRole="header">
             Which one{"\n"}
-            <Text style={{ color: chosenMeta?.accent || colors.primaryOnDark }}>
+            <Text style={{ color: chosenMeta?.accent || colors.primary }}>
               are you?
             </Text>
           </Text>
 
-          <View style={styles.cardRow}>
+          <View style={styles.cardList}>
             {ROLES.map((r, i) => (
               <RoleCard
                 key={r.key}
@@ -102,13 +109,6 @@ export default function AuthScreen({
             ))}
           </View>
 
-          {/* The tagline swaps as they choose */}
-          <View style={styles.taglineBox}>
-            <Text style={styles.tagline}>
-              {chosenMeta ? chosenMeta.tagline : "Tap one to see what we offer"}
-            </Text>
-          </View>
-
           <View style={styles.spacer} />
 
           {!!error && (
@@ -120,9 +120,7 @@ export default function AuthScreen({
           <TouchableOpacity
             style={[
               styles.primary,
-              {
-                backgroundColor: chosenMeta?.accent || "rgba(255,255,255,0.1)",
-              },
+              { backgroundColor: chosenMeta?.accent || colors.surfaceDeep },
             ]}
             activeOpacity={0.9}
             onPress={() => chosen && onContinue(chosen)}
@@ -155,7 +153,7 @@ export default function AuthScreen({
             <MaterialCommunityIcons
               name="google"
               size={17}
-              color={colors.onDarkHigh}
+              color={colors.textDark}
             />
             <Text style={styles.googleText}>
               {googleBusy ? "Signing in…" : "Continue with Google"}
@@ -173,7 +171,7 @@ export default function AuthScreen({
             <MaterialCommunityIcons
               name="account-check-outline"
               size={15}
-              color={colors.onDarkLow}
+              color={colors.textMid}
             />
             <Text style={styles.returningText}>
               Already registered?{" "}
@@ -187,45 +185,6 @@ export default function AuthScreen({
         </ScrollView>
       </SafeAreaView>
     </View>
-  );
-}
-
-/* ---------- The glow, which cross-fades between colours ---------- */
-
-function Glow({ accent }: { accent: string }) {
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 3200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 3200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const scale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.18],
-  });
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[styles.glow, { backgroundColor: accent, transform: [{ scale }] }]}
-    />
   );
 }
 
@@ -246,6 +205,7 @@ function RoleCard({
   dimmed: boolean;
   onPress: () => void;
 }) {
+  const look = CARD_LOOK[role.key];
   const enter = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(0)).current;
 
@@ -260,7 +220,8 @@ function RoleCard({
     }).start();
   }, [enter, index]);
 
-  /* The chosen card rises and holds */
+  /* The chosen card swells slightly and holds — no rise, the
+     stacked neighbours are too close */
   useEffect(() => {
     Animated.spring(lift, {
       toValue: active ? 1 : 0,
@@ -270,22 +231,24 @@ function RoleCard({
     }).start();
   }, [active, lift]);
 
-  const translateY = Animated.add(
-    enter.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }),
-    lift.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }),
-  );
+  const translateY = enter.interpolate({
+    inputRange: [0, 1],
+    outputRange: [30, 0],
+  });
 
   const scale = lift.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1.05],
+    outputRange: [1, 1.02],
   });
 
   return (
     <Animated.View
-      style={{
-        opacity: enter,
-        transform: [{ translateY }, { scale }],
-      }}
+      style={[
+        styles.ring,
+        { borderColor: active ? role.accent : "transparent" },
+        // The others fade once one is chosen — by then they've entered
+        { opacity: dimmed ? 0.5 : enter, transform: [{ translateY }, { scale }] },
+      ]}
     >
       <TouchableOpacity
         activeOpacity={0.9}
@@ -293,69 +256,58 @@ function RoleCard({
         accessibilityRole="radio"
         accessibilityState={{ checked: active }}
         accessibilityLabel={`${role.label}. ${role.tagline}`}
-        style={[
-          styles.card,
-          {
-            width,
-            minHeight: width * 1.24,
-            borderColor: active ? role.accent : "rgba(255,255,255,0.1)",
-            backgroundColor: active
-              ? tint(role.accent, 0.12)
-              : "rgba(255,255,255,0.04)",
-          },
-          dimmed && styles.cardDimmed,
-        ]}
       >
-        <View
-          style={[
-            styles.cardIcon,
-            { backgroundColor: active ? role.accent : tint(role.accent, 0.15) },
-          ]}
+        <LinearGradient
+          colors={look.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.card}
         >
-          <MaterialCommunityIcons
-            name={role.icon as any}
-            size={24}
-            color={active ? colors.white : role.accent}
-          />
-        </View>
+          {/* Decorative shapes, as on Lasan Mart's banners. Passes are
+              staggered so the three never sweep together. */}
+          <View pointerEvents="none" style={styles.orb} />
+          <View pointerEvents="none" style={styles.sheen} />
+          <Shimmer width={width} opacity={0.2} delay={2400 + index * 900} />
 
-        <Text
-          style={[styles.cardLabel, active && styles.cardLabelActive]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {role.label}
-        </Text>
-
-        {active && (
-          <View style={[styles.tick, { backgroundColor: role.accent }]}>
+          <View style={styles.iconTile}>
             <MaterialCommunityIcons
-              name="check"
-              size={11}
+              name={role.icon as any}
+              size={24}
               color={colors.white}
             />
           </View>
-        )}
+
+          <View style={styles.cardText}>
+            <View style={styles.tagRow}>
+              <View style={styles.tag}>
+                <Text style={styles.tagText}>{look.tag}</Text>
+              </View>
+            </View>
+            <Text style={styles.cardLabel}>{role.label}</Text>
+            <Text style={styles.cardTagline}>{role.tagline}</Text>
+          </View>
+
+          <View style={[styles.radio, active && styles.radioOn]}>
+            {active && (
+              <MaterialCommunityIcons
+                name="check"
+                size={17}
+                color={look.gradient[1]}
+              />
+            )}
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.ink },
-  glow: {
-    position: "absolute",
-    top: "6%",
-    alignSelf: "center",
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    opacity: 0.24,
-  },
+  root: { flex: 1, backgroundColor: colors.background },
 
   body: {
     flexGrow: 1,
-    paddingHorizontal: SIDE_PADDING,
+    paddingHorizontal: SIDE_PADDING - RING - RING_GAP,
     paddingTop: 40,
     paddingBottom: 16,
   },
@@ -364,69 +316,116 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: size.xxs,
     letterSpacing: 2.4,
-    color: colors.onDarkLow,
+    color: colors.textLight,
     marginBottom: 12,
+    marginHorizontal: RING + RING_GAP,
   },
   title: {
     fontFamily: fonts.bold,
     fontSize: size.hero,
     lineHeight: 42,
-    color: colors.onDark,
+    color: colors.textDark,
     letterSpacing: -1,
-    marginBottom: 32,
+    marginBottom: 26,
+    marginHorizontal: RING + RING_GAP,
   },
 
-  cardRow: { flexDirection: "row", gap: CARD_GAP, justifyContent: "center" },
-  card: {
-    borderRadius: 22,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 14,
+  cardList: { gap: 8 },
+  ring: {
+    borderRadius: 20 + RING + RING_GAP,
+    borderWidth: RING,
+    padding: RING_GAP,
   },
-  cardDimmed: { opacity: 0.45 },
-  cardIcon: {
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    // A floor, not a fixed size: with large text the tagline wraps
+    // and the card grows instead of cutting it off
+    minHeight: 96,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  orb: {
+    position: "absolute",
+    top: -50,
+    right: -30,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+  sheen: {
+    position: "absolute",
+    top: -30,
+    left: -40,
+    width: 70,
+    height: 200,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    transform: [{ rotate: "22deg" }],
+  },
+  iconTile: {
     width: 50,
     height: 50,
-    borderRadius: 18,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginRight: 14,
+  },
+  cardText: { flex: 1 },
+  tagRow: { flexDirection: "row", marginBottom: 5 },
+  tag: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  tagText: {
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    color: "rgba(255,255,255,0.9)",
+    letterSpacing: 0.8,
   },
   cardLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: size.md,
-    color: colors.onDarkMid,
-    textAlign: "center",
+    fontFamily: fonts.bold,
+    fontSize: size.xl,
+    color: colors.white,
+    letterSpacing: -0.4,
+    marginBottom: 2,
   },
-  cardLabelActive: { color: colors.onDark, fontFamily: fonts.bold },
-  tick: {
-    position: "absolute",
-    top: 9,
-    right: 9,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  cardTagline: {
+    fontFamily: fonts.regular,
+    fontSize: size.xs,
+    lineHeight: 17,
+    color: "rgba(255,255,255,0.78)",
+  },
+  radio: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.55)",
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: 10,
   },
+  radioOn: { backgroundColor: colors.white, borderColor: colors.white },
 
-  taglineBox: { minHeight: 40, justifyContent: "center", marginTop: 18 },
-  tagline: {
-    fontFamily: fonts.regular,
-    fontSize: size.md,
-    lineHeight: 20,
-    color: colors.onDarkMid,
-    textAlign: "center",
-  },
-
-  spacer: { flex: 1, minHeight: 20 },
+  spacer: { flex: 1, minHeight: 24 },
 
   error: {
     fontFamily: fonts.regular,
     fontSize: size.sm,
-    color: colors.dangerOnDark,
+    color: colors.danger,
     textAlign: "center",
     marginBottom: 12,
   },
@@ -439,13 +438,14 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingVertical: 14,
     borderRadius: 17,
+    marginHorizontal: RING + RING_GAP,
   },
   primaryText: {
     fontFamily: fonts.semibold,
     fontSize: size.lg,
     color: colors.white,
   },
-  primaryTextOff: { color: colors.onDarkLow },
+  primaryTextOff: { color: colors.textLight },
 
   google: {
     flexDirection: "row",
@@ -454,13 +454,17 @@ const styles = StyleSheet.create({
     gap: 9,
     minHeight: 52,
     marginTop: 10,
+    marginHorizontal: RING + RING_GAP,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   googleText: {
     fontFamily: fonts.semibold,
     fontSize: size.md,
-    color: colors.onDarkHigh,
+    color: colors.textDark,
   },
-  off: { opacity: 0.3 },
+  off: { opacity: 0.4 },
 
   returning: {
     flexDirection: "row",
@@ -473,17 +477,17 @@ const styles = StyleSheet.create({
   returningText: {
     fontFamily: fonts.regular,
     fontSize: size.sm,
-    color: colors.onDarkLow,
+    color: colors.textMid,
   },
   returningLink: {
     fontFamily: fonts.semibold,
-    color: colors.primaryOnDark,
+    color: colors.primary,
   },
 
   legal: {
     fontFamily: fonts.regular,
     fontSize: size.xs,
-    color: colors.onDarkLow,
+    color: colors.textLight,
     textAlign: "center",
     marginTop: 6,
   },

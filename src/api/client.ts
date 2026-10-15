@@ -1,6 +1,6 @@
 import { getAuthToken } from "../lib/auth";
 import { devLog } from "../lib/log";
-import { API_URL, CLOUDINARY_CLOUD, CLOUDINARY_PRESET } from "../config";
+import { API_URL } from "../config";
 import type { Role } from "../data/roles";
 
 const TIMEOUT_MS = 15000;
@@ -202,15 +202,34 @@ export async function updateJob(
   });
 }
 
+type UploadSignature = {
+  cloudName: string;
+  apiKey: string;
+  folder: string;
+  timestamp: string;
+  signature: string;
+};
+
 /**
  * Uploads a photo and returns a public URL.
+ *
+ * Cloudinary only accepts uploads our backend has signed, and the
+ * backend signs only for a verified number — so call this after the
+ * phone is verified.
  *
  * XMLHttpRequest rather than fetch — React Native's fetch can't send
  * a file URI in FormData.
  */
-export function uploadPhoto(uri: string): Promise<string> {
+export async function uploadPhoto(uri: string): Promise<string> {
   // Already a web URL — Google sign-in photos arrive like this
-  if (uri.startsWith("http")) return Promise.resolve(uri);
+  if (uri.startsWith("http")) return uri;
+
+  const sig: UploadSignature = await request("/uploads/signature", {
+    method: "POST",
+    body: JSON.stringify({ kind: "photo" }),
+  });
+
+  if (!sig?.signature) throw new ApiError("Could not upload the photo.");
 
   return new Promise((resolve, reject) => {
     const form = new FormData();
@@ -221,7 +240,10 @@ export function uploadPhoto(uri: string): Promise<string> {
       name: "profile.jpg",
     } as any);
 
-    form.append("upload_preset", CLOUDINARY_PRESET);
+    form.append("api_key", sig.apiKey);
+    form.append("timestamp", sig.timestamp);
+    form.append("folder", sig.folder);
+    form.append("signature", sig.signature);
 
     const xhr = new XMLHttpRequest();
     xhr.timeout = 60000;
@@ -252,7 +274,7 @@ export function uploadPhoto(uri: string): Promise<string> {
 
     xhr.open(
       "POST",
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+      `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
     );
     xhr.send(form);
   });
@@ -299,5 +321,32 @@ export async function markNotificationsRead(id?: string): Promise<void> {
     });
   } catch {
     // Not worth surfacing
+  }
+}
+
+/**
+ * Ties this phone to the signed-in partner so work offers and review
+ * decisions arrive as notifications. True only when it was saved —
+ * before a profile exists there is nothing to attach it to.
+ */
+export async function registerPushToken(token: string): Promise<boolean> {
+  try {
+    const data = await request("/influencers/push-token", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    return data?.success === true;
+  } catch {
+    // The in-app list still works without it
+    return false;
+  }
+}
+
+/** Called on sign-out, while the token still says who they are */
+export async function unregisterPushToken(): Promise<void> {
+  try {
+    await request("/influencers/push-token", { method: "DELETE" });
+  } catch {
+    // Not worth blocking a sign-out over
   }
 }
