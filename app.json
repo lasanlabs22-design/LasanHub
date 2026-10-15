@@ -17,7 +17,8 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0F0A1F",
-        "foregroundImage": "./assets/icon.png"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": ["POST_NOTIFICATIONS"],
       "blockedPermissions": [
@@ -57,8 +58,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/icon.png",
-          "imageWidth": 200,
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
           "backgroundColor": "#0F0A1F"
         }
