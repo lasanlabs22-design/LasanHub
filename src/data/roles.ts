@@ -24,7 +24,7 @@ export const ROLES: {
   {
     key: "freelancer",
     label: "Freelancer",
-    tagline: "Design, video, writing, development",
+    tagline: "Photo, video, marketing, software development",
     icon: "laptop",
     accent: "#3A86FF",
   },
@@ -57,12 +57,17 @@ export const VENDOR_SERVICES = [
   "Corporate Events",
 ];
 
-/** What a freelancer can offer */
+/**
+ * What a freelancer can offer. Must match freelancerServices in
+ * Lasan Mart character for character — the admin console matches a
+ * business's request to freelancers on this exact text.
+ */
 export const FREELANCER_SKILLS = [
   "Photography",
   "Videography",
   "Video Editing",
   "Digital Marketing",
+  "Software Development",
 ];
 
 /** For creators — what they post about */
