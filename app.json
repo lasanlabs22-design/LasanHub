@@ -14,6 +14,7 @@
       "package": "com.lasanhub.app",
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
+      "allowBackup": false,
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0F0A1F",
