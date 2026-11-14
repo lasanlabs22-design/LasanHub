@@ -17,7 +17,7 @@
       "allowBackup": false,
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#0F0A1F",
+        "backgroundColor": "#5B038E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -60,9 +60,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 220,
+          "imageWidth": 288,
           "resizeMode": "contain",
-          "backgroundColor": "#0F0A1F"
+          "backgroundColor": "#5B038E"
         }
       ]
     ],
