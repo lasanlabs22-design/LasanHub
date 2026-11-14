@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "619769435695-5sd0tbts3plkfc1s7vuun17oelk1jnlk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lasanhub.app",
+            "certificate_hash": "30b9bdd7d74882eb8f2e5ceb573ba0dfe99d223d"
+          }
+        },
+        {
           "client_id": "619769435695-uqum4ob6qe9elusbdsig03il1ih1ok03.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -56,6 +64,14 @@
           "android_info": {
             "package_name": "com.lasanmart.app",
             "certificate_hash": "91f9936ffdf85ed0a4706c62b8f09c0155f973d9"
+          }
+        },
+        {
+          "client_id": "619769435695-jit8pcn17dpibqsftvebl2genk513e27.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lasanmart.app",
+            "certificate_hash": "83ac689eebc8ef8feffc41c0a70fd393800ca080"
           }
         },
         {

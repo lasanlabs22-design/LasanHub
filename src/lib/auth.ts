@@ -29,7 +29,9 @@ export class AuthError extends Error {
 /* ---------------- Phone ---------------- */
 
 function readable(err: any): AuthError {
-  switch (err?.code) {
+  const code: string = err?.code || "unknown";
+
+  switch (code) {
     case "auth/invalid-phone-number":
       return new AuthError("That number doesn't look right.");
     case "auth/too-many-requests":
@@ -41,24 +43,75 @@ function readable(err: any): AuthError {
       return new AuthError("That code expired. Request a new one.");
     case "auth/network-request-failed":
       return new AuthError("Check your connection and try again.");
+    case "auth/quota-exceeded":
+      return new AuthError(
+        "We can't send codes right now. Please try again in a little while.",
+      );
+    case "auth/web-context-cancelled":
+      return new AuthError("The check was closed before it finished. Please try again.");
     default:
-      devLog("Auth error:", err?.code, err?.message);
-      return new AuthError("Something went wrong. Please try again.");
+      devLog("Auth error:", code, err?.message);
+      // The code alone says nothing about the user, and it turns a
+      // partner's screenshot into something we can actually act on
+      return new AuthError(`Something went wrong (${code}). Please try again.`);
   }
 }
 
-export type Confirmation = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
+type FirebaseConfirmation = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
 
-export async function sendOtp(phone: string): Promise<Confirmation> {
+/**
+ * What `sendOtp` hands back — pass it to `verifyOtp`.
+ *
+ * On Android a typed code isn't the only way in: Play services can
+ * verify the number on the phone itself (no SMS at all) or read the
+ * SMS before the partner does, and sign in on its own. `result` is
+ * null when that happened before any code was sent.
+ */
+export type Confirmation = {
+  phoneNumber: string;
+  result: FirebaseConfirmation | null;
+};
+
+/** Is Firebase already signed in as this exact number? */
+function signedInAs(phoneNumber: string): boolean {
+  return getAuth().currentUser?.phoneNumber === phoneNumber;
+}
+
+/**
+ * Pass `resend` for "Send a new code": Android quietly drops a repeat
+ * request for the same number unless it's flagged as a resend.
+ */
+export async function sendOtp(
+  phone: string,
+  resend = false,
+): Promise<Confirmation> {
   const digits = phone.replace(/\D/g, "").slice(-10);
 
   if (digits.length !== 10) {
     throw new AuthError("Enter a valid 10-digit mobile number.");
   }
 
+  const phoneNumber = `+91${digits}`;
+
   try {
-    return await signInWithPhoneNumber(getAuth(), `+91${digits}`);
-  } catch (err) {
+    // The modular signInWithPhoneNumber has no resend flag, but the
+    // auth instance's own method does
+    const result: FirebaseConfirmation = resend
+      ? await (getAuth() as any).signInWithPhoneNumber(phoneNumber, true)
+      : await signInWithPhoneNumber(getAuth(), phoneNumber);
+
+    return { phoneNumber, result };
+  } catch (err: any) {
+    // Instant verification signs in without sending any code, which the
+    // library reports as a missing verification ID. The sign-in itself
+    // can land a moment after that — `onPhoneVerified` picks it up.
+    const instant =
+      !err?.code && String(err?.message ?? "").includes("verificationId");
+
+    if (instant || signedInAs(phoneNumber)) {
+      return { phoneNumber, result: null };
+    }
+
     throw readable(err);
   }
 }
@@ -70,11 +123,36 @@ export async function verifyOtp(confirmation: Confirmation, code: string) {
     throw new AuthError("Enter the 6-digit code.");
   }
 
+  // Android already read the SMS and signed in. That uses the code up,
+  // so confirming it now would fail as "expired".
+  if (signedInAs(confirmation.phoneNumber)) return;
+
+  if (!confirmation.result) {
+    throw new AuthError("That code expired. Request a new one.");
+  }
+
   try {
-    await confirmation.confirm(digits);
+    await confirmation.result.confirm(digits);
   } catch (err) {
+    // ...or it did so while this was in flight
+    if (signedInAs(confirmation.phoneNumber)) return;
+
     throw readable(err);
   }
+}
+
+/**
+ * Calls back once Firebase is signed in as the number the code went
+ * to — including when Android verifies it without the partner typing
+ * anything. Fires straight away if that has already happened.
+ */
+export function onPhoneVerified(
+  confirmation: Confirmation,
+  callback: () => void,
+) {
+  return onAuthStateChanged(getAuth(), () => {
+    if (signedInAs(confirmation.phoneNumber)) callback();
+  });
 }
 
 /* ---------------- Google ---------------- */
