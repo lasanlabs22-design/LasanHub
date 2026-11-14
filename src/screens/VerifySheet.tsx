@@ -16,7 +16,12 @@ import { StatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
 import { fonts, size, TIGHT_SCALE } from "../theme/typography";
-import { sendOtp, verifyOtp, Confirmation } from "../lib/auth";
+import {
+  sendOtp,
+  verifyOtp,
+  onPhoneVerified,
+  Confirmation,
+} from "../lib/auth";
 import Button from "../components/Button";
 
 const RESEND_SECONDS = 45;
@@ -65,6 +70,9 @@ export default function VerifySheet({
     }
   }, [step]);
 
+  /* Hand over exactly once, however the number got verified */
+  const done = useRef(false);
+
   /* Start clean each time it opens */
   useEffect(() => {
     if (visible) {
@@ -72,13 +80,30 @@ export default function VerifySheet({
       setCode("");
       setError("");
       setConfirmation(null);
+      done.current = false;
     }
   }, [visible]);
+
+  const finish = () => {
+    if (done.current) return;
+    done.current = true;
+    Keyboard.dismiss();
+    onVerified(phone);
+  };
+
+  /* Android can verify the number by itself — instantly, or by reading
+     the SMS — so don't wait for the partner to type the code */
+  useEffect(() => {
+    if (!visible || !confirmation) return;
+    return onPhoneVerified(confirmation, finish);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, confirmation]);
 
   const backToPhone = () => {
     setStep("phone");
     setCode("");
     setError("");
+    setConfirmation(null);
   };
 
   const send = async (resend = false) => {
@@ -88,8 +113,23 @@ export default function VerifySheet({
     setError("");
 
     try {
-      const result = await sendOtp(phone);
+      const result = await sendOtp(phone, resend);
       setConfirmation(result);
+
+      // Verified on the phone itself — there's no code to wait for.
+      // The listener above finishes once Firebase reports the sign-in;
+      // stay busy until then, but never forever.
+      if (!result.result) {
+        for (let i = 0; i < 40 && !done.current; i++) {
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        if (!done.current) {
+          setConfirmation(null);
+          setError("We couldn't confirm your number. Please try again.");
+        }
+        return;
+      }
+
       setSeconds(RESEND_SECONDS);
       if (!resend) setStep("code");
     } catch (err: any) {
@@ -108,7 +148,7 @@ export default function VerifySheet({
 
     try {
       await verifyOtp(confirmation, code);
-      onVerified(phone);
+      finish();
     } catch (err: any) {
       setError(err?.message || "That code did not work.");
       setCode("");
